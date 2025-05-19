@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,22 +28,63 @@ interface DocumentListClientProps {
   documents: DocumentMetadata[];
 }
 
+interface DocumentMetadataWithDisplayDate extends DocumentMetadata {
+  displayUpdatedAt: string;
+}
+
 export function DocumentListClient({ documents: initialDocuments }: DocumentListClientProps) {
-  const [documents, setDocuments] = useState<DocumentMetadata[]>(initialDocuments);
+  const [processedDocs, setProcessedDocs] = useState<DocumentMetadataWithDisplayDate[] | null>(null);
   const [selectedDocumentForShare, setSelectedDocumentForShare] = useState<DocumentMetadata | null>(null);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+
+  useEffect(() => {
+    // Format dates on the client side after initial hydration
+    const docsWithFormattedDates = initialDocuments.map(doc => ({
+      ...doc,
+      displayUpdatedAt: format(new Date(doc.updatedAt), "MMM dd, yyyy")
+    }));
+    setProcessedDocs(docsWithFormattedDates);
+  }, [initialDocuments]);
 
   const handleShare = (doc: DocumentMetadata) => {
     setSelectedDocumentForShare(doc);
     setIsShareDialogOpen(true);
   };
 
-  // Placeholder for delete action
   const handleDelete = (docId: string) => {
     console.log("Delete document:", docId);
-    setDocuments(documents.filter(doc => doc.id !== docId));
+    setProcessedDocs(prevDocs => prevDocs ? prevDocs.filter(doc => doc.id !== docId) : null);
     // TODO: Call server action to delete document
   };
+
+  if (processedDocs === null && initialDocuments.length > 0) {
+    // Still loading/processing client-side dates, show a placeholder
+    return (
+      <div className="rounded-lg border shadow-sm bg-card">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[250px]">Name</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Number</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Last Modified</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <TableRow>
+              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                Loading document dates...
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    );
+  }
+  
+  const documentsToDisplay = processedDocs || [];
 
   return (
     <>
@@ -60,14 +101,14 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
             </TableRow>
           </TableHeader>
           <TableBody>
-            {documents.length === 0 ? (
+            {documentsToDisplay.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
                   No documents found.
                 </TableCell>
               </TableRow>
             ) : (
-              documents.map((doc) => (
+              documentsToDisplay.map((doc) => (
                 <TableRow key={doc.id}>
                   <TableCell className="font-medium text-foreground">
                     <Link href={`/documents/${doc.id}`} className="hover:underline flex items-center gap-2">
@@ -82,7 +123,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
-                    {format(new Date(doc.updatedAt), "MMM dd, yyyy")}
+                    {doc.displayUpdatedAt}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
