@@ -72,6 +72,23 @@ export const updateDocumentSharing = (docId: string, sharedWith: DocumentMetadat
   }
 };
 
+export const updateDocumentMetadata = (
+  docId: string,
+  updates: Partial<Pick<DocumentMetadata, 'name' | 'type'>> // Can be extended for other fields
+): boolean => {
+  const docIndex = userDocuments.findIndex(d => d.id === docId);
+  if (docIndex !== -1) {
+    userDocuments[docIndex] = {
+      ...userDocuments[docIndex],
+      ...updates,
+      updatedAt: new Date().toISOString(),
+    };
+    return true;
+  }
+  return false; // Document not found
+};
+
+
 export const getDocuments = async (): Promise<DocumentMetadata[]> => {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 500));

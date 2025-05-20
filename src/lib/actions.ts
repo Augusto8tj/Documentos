@@ -3,7 +3,12 @@
 
 import { z } from "zod";
 import { DocumentType, type DocumentMetadata } from "./types";
-import { addDocument as dbAddDocument, updateDocumentSharing as dbUpdateDocumentSharing, userDocuments } from "@/data/mock-data";
+import { 
+  addDocument as dbAddDocument, 
+  updateDocumentSharing as dbUpdateDocumentSharing, 
+  updateDocumentMetadata as dbUpdateDocumentMetadata, // Import new update function
+  userDocuments 
+} from "@/data/mock-data";
 import { revalidatePath } from "next/cache";
 
 const CreateDocumentSchema = z.object({
@@ -88,4 +93,43 @@ export async function shareDocumentAction(documentId: string, sharedWithInput: D
   revalidatePath(`/documents/${documentId}`); // Revalidate document detail page
 
   return { success: true };
+}
+
+// Schema for editing document metadata
+const EditDocumentFormSchema = z.object({
+  id: z.string().min(1, "ID do documento é obrigatório."),
+  name: z.string().min(3, "O nome do documento deve ter pelo menos 3 caracteres."),
+  type: z.nativeEnum(DocumentType, {
+    errorMap: () => ({ message: "Por favor, selecione um tipo de documento válido." }),
+  }),
+});
+
+export async function updateDocumentAction(formData: FormData) {
+  const validatedFields = EditDocumentFormSchema.safeParse({
+    id: formData.get("id"),
+    name: formData.get("name"),
+    type: formData.get("type"),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      error: "Dados inválidos. " + JSON.stringify(validatedFields.error.flatten().fieldErrors),
+    };
+  }
+
+  const { id, name, type } = validatedFields.data;
+
+  const success = dbUpdateDocumentMetadata(id, { name, type });
+
+  if (!success) {
+    return {
+      error: "Documento não encontrado ou falha ao atualizar.",
+    };
+  }
+
+  revalidatePath("/"); // Revalidate dashboard
+  revalidatePath(`/documents/${id}`); // Revalidate document detail page
+  revalidatePath(`/documents/${id}/edit`); // Revalidate edit page itself
+
+  return { success: true, documentId: id };
 }
