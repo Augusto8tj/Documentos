@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X } from "lucide-react";
+import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users } from "lucide-react";
 import type { DocumentMetadata } from "@/lib/types";
 import { DocumentType } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
@@ -52,13 +52,20 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const [filterName, setFilterName] = useState("");
   const [filterType, setFilterType] = useState<DocumentType | "all">("all");
   const [filterStatus, setFilterStatus] = useState<DocumentMetadata["status"] | "all">("all");
+  const [filterHasGoogleDocsLink, setFilterHasGoogleDocsLink] = useState<"all" | "yes" | "no">("all");
+  const [filterSharedEmail, setFilterSharedEmail] = useState("");
 
   useEffect(() => {
     const filtered = initialDocuments.filter(doc => {
       const nameMatch = filterName === "" || doc.name.toLowerCase().includes(filterName.toLowerCase());
       const typeMatch = filterType === "all" || doc.type === filterType;
       const statusMatch = filterStatus === "all" || doc.status === filterStatus;
-      return nameMatch && typeMatch && statusMatch;
+      const googleDocsMatch = filterHasGoogleDocsLink === "all" ||
+                             (filterHasGoogleDocsLink === "yes" && !!doc.googleDocsId) ||
+                             (filterHasGoogleDocsLink === "no" && !doc.googleDocsId);
+      const sharedEmailMatch = filterSharedEmail === "" ||
+                               (doc.sharedWith && doc.sharedWith.some(user => user.email.toLowerCase().includes(filterSharedEmail.toLowerCase())));
+      return nameMatch && typeMatch && statusMatch && googleDocsMatch && sharedEmailMatch;
     });
 
     const docsWithFormattedData = filtered.map(doc => ({
@@ -67,7 +74,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
       displayStatus: doc.status === "Published" ? "Publicado" : doc.status === "Draft" ? "Rascunho" : doc.status,
     }));
     setDocumentsToDisplay(docsWithFormattedData);
-  }, [initialDocuments, filterName, filterType, filterStatus]);
+  }, [initialDocuments, filterName, filterType, filterStatus, filterHasGoogleDocsLink, filterSharedEmail]);
 
   const handleShare = (doc: DocumentMetadata) => {
     setSelectedDocumentForShare(doc);
@@ -85,6 +92,8 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     setFilterName("");
     setFilterType("all");
     setFilterStatus("all");
+    setFilterHasGoogleDocsLink("all");
+    setFilterSharedEmail("");
   };
 
   if (documentsToDisplay === null && initialDocuments.length > 0) {
@@ -93,10 +102,12 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
         <div className="mb-4 p-4 border rounded-lg bg-card shadow">
           <h3 className="text-lg font-semibold mb-3 text-foreground">Filtros</h3>
           {/* Placeholder for filters while loading */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-4">
             <div className="h-10 bg-muted rounded-md animate-pulse"></div>
             <div className="h-10 bg-muted rounded-md animate-pulse"></div>
             <div className="h-10 bg-muted rounded-md animate-pulse"></div>
+            <div className="h-10 bg-muted rounded-md animate-pulse md:hidden lg:block"></div>
+            <div className="h-10 bg-muted rounded-md animate-pulse md:hidden lg:block"></div>
           </div>
         </div>
         <Table>
@@ -127,8 +138,14 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   return (
     <>
       <div className="mb-6 p-4 border rounded-lg bg-card shadow-md">
-        <h3 className="text-lg font-semibold mb-4 text-foreground">Filtros</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-foreground">Filtros</h3>
+          <Button variant="outline" onClick={handleClearFilters} size="sm">
+            <X className="mr-2 h-4 w-4" />
+            Limpar Filtros
+          </Button>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
           <div>
             <Label htmlFor="filterName" className="text-sm font-medium text-muted-foreground db-block mb-1">Nome do Documento</Label>
             <Input
@@ -167,12 +184,35 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
               </SelectContent>
             </Select>
           </div>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <Button variant="outline" onClick={handleClearFilters} size="sm">
-            <X className="mr-2 h-4 w-4" />
-            Limpar Filtros
-          </Button>
+          <div>
+            <Label htmlFor="filterHasGoogleDocsLink" className="text-sm font-medium text-muted-foreground db-block mb-1">
+              <Link2 className="inline mr-1 h-4 w-4" />
+              Possui Link Google Docs?
+            </Label>
+            <Select value={filterHasGoogleDocsLink} onValueChange={(value) => setFilterHasGoogleDocsLink(value as "all" | "yes" | "no")}>
+              <SelectTrigger id="filterHasGoogleDocsLink" className="mt-1">
+                <SelectValue placeholder="Todos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos</SelectItem>
+                <SelectItem value="yes">Sim</SelectItem>
+                <SelectItem value="no">Não</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label htmlFor="filterSharedEmail" className="text-sm font-medium text-muted-foreground db-block mb-1">
+              <Users className="inline mr-1 h-4 w-4" />
+              Compartilhado com E-mail
+            </Label>
+            <Input
+              id="filterSharedEmail"
+              placeholder="Buscar por e-mail..."
+              value={filterSharedEmail}
+              onChange={(e) => setFilterSharedEmail(e.target.value)}
+              className="mt-1"
+            />
+          </div>
         </div>
       </div>
 
@@ -250,3 +290,4 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     </>
   );
 }
+
