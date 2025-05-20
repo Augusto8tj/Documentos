@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users, CalendarIcon, Filter, Folder, FileArchive, ExternalLink } from "lucide-react";
+import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, ExternalLink, Users, CalendarIcon, Filter, Folder, FileArchive, CheckCircle2, FileEdit, Archive } from "lucide-react";
 import type { DocumentMetadata, DocumentSourceType } from "@/lib/types";
 import { DocumentType } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
@@ -87,7 +87,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     const formattedInitialDocs = initialDocuments.map(doc => ({
       ...doc,
       displayUpdatedAt: format(new Date(doc.updatedAt), "dd MMM, yyyy", { locale: ptBR }),
-      displayStatus: doc.status === "Published" ? "Publicado" : doc.status === "Draft" ? "Rascunho" : doc.status,
+      displayStatus: doc.status === "Published" ? "Publicado" : doc.status === "Draft" ? "Rascunho" : doc.status === "Archived" ? "Arquivado" : doc.status,
     }));
 
     const filtered = formattedInitialDocs.filter(doc => {
@@ -196,25 +196,19 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
 
    if (processedDocs === null && initialDocuments.length > 0) {
-     // Initial loading state or if initialDocuments exist but processedDocs haven't been set yet
-     // This could be a more sophisticated skeleton loader
      return (
       <div className="rounded-lg border shadow-sm bg-card p-4">
         <div className="animate-pulse">
-          {/* Skeleton for filter section title and clear button */}
           <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
-          {/* Skeleton for filter inputs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6 p-4 items-end">
-            {[...Array(8)].map((_, i) => ( // Assuming roughly 8 filter controls
+            {[...Array(8)].map((_, i) => ( 
               <div key={i} className="space-y-1">
                 <div className="h-4 bg-muted rounded w-1/3"></div> 
                 <div className="h-10 bg-muted rounded"></div> 
               </div>
             ))}
           </div>
-          {/* Skeleton for table header */}
           <div className="h-10 bg-muted rounded w-full mb-2"></div>
-          {/* Skeleton for table rows */}
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-12 bg-muted rounded w-full mb-1"></div>
           ))}
@@ -223,7 +217,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     );
   }
   
-  const currentDocuments = processedDocs || []; // Use processedDocs if available, otherwise empty array
+  const currentDocuments = processedDocs || []; 
 
   const getSourceTypeIcon = (sourceType: DocumentSourceType) => {
     switch (sourceType) {
@@ -234,9 +228,36 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
       case "internal":
         return <FileArchive className="h-4 w-4 text-gray-500" />;
       default:
-        return <FileText className="h-4 w-4 text-gray-400" />; // Fallback icon
+        return <FileText className="h-4 w-4 text-gray-400" />; 
     }
   };
+  
+  const getStatusBadgeVariant = (status: DocumentMetadata["status"]) => {
+    switch (status) {
+      case "Published":
+        return "default"; // Uses primary color by default for 'default' variant of Badge
+      case "Draft":
+        return "secondary";
+      case "Archived":
+        return "outline"; // Or choose another suitable variant
+      default:
+        return "secondary";
+    }
+  };
+
+  const getStatusBadgeClass = (status: DocumentMetadata["status"]) => {
+     switch (status) {
+      case "Published":
+        return "bg-accent text-accent-foreground"; // Greenish accent
+      case "Draft":
+        return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50"; // Custom if needed, or rely on secondary
+      case "Archived":
+         return "bg-gray-500/20 text-gray-700 border-gray-500/50"; // Custom if needed, or rely on outline
+      default:
+        return "";
+    }
+  }
+
 
   return (
     <>
@@ -309,15 +330,14 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                 </Select>
               </div>
               
-              {/* Date Created Filter */}
               <div className="space-y-1">
                 <Label htmlFor="filterCreatedAtPeriodSelect" className="text-sm font-medium text-muted-foreground">Data de Criação</Label>
                 <div className="flex gap-2 mt-1">
                   <Select 
                     value={filterCreatedAtPeriod} 
                     onValueChange={(value) => handleCreatedAtPeriodChange(value as DateFilterPeriod)}
-                    name="filterCreatedAtPeriodSelect" // Added name for accessibility/testing if needed
-                    aria-label="Período do filtro de data de criação" // For accessibility
+                    name="filterCreatedAtPeriodSelect" 
+                    aria-label="Período do filtro de data de criação"
                   >
                     <SelectTrigger className="w-[120px]">
                       <SelectValue placeholder="Período" />
@@ -358,7 +378,6 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                 </div>
               </div>
 
-              {/* Date Updated Filter */}
               <div className="space-y-1">
                 <Label htmlFor="filterUpdatedAtPeriodSelect" className="text-sm font-medium text-muted-foreground">Data Últ. Modificação</Label>
                  <div className="flex gap-2 mt-1">
@@ -429,7 +448,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
           <TableHeader>
             <TableRow>
               <TableHead className="w-[40px] p-2 text-center">Fonte</TableHead>
-              <TableHead className="w-[250px]">Nome</TableHead>
+              <TableHead className="min-w-[250px]">Nome</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Número</TableHead>
               <TableHead>Status</TableHead>
@@ -460,14 +479,32 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                     </TooltipProvider>
                   </TableCell>
                   <TableCell className="font-medium text-foreground">
-                    <Link href={`/documents/${doc.id}`} className="hover:underline flex items-center gap-2">
-                       <FileText className="h-4 w-4 text-primary" /> {doc.name}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary flex-shrink-0" />
+                      <Link href={`/documents/${doc.id}`} className="hover:underline truncate" title={doc.name}>
+                         {doc.name}
+                      </Link>
+                      {doc.sharedWith && doc.sharedWith.length > 0 && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Users className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>Compartilhado</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-muted-foreground">{doc.type}</TableCell>
                   <TableCell className="text-muted-foreground">{doc.number}</TableCell>
                   <TableCell>
-                    <Badge variant={doc.status === "Published" ? "default" : "secondary"} className={doc.status === "Published" ? "bg-accent text-accent-foreground" : ""}>
+                  <Badge 
+                    variant={getStatusBadgeVariant(doc.status)} 
+                    className={cn(getStatusBadgeClass(doc.status))}
+                  >
                       {doc.displayStatus}
                     </Badge>
                   </TableCell>
@@ -523,3 +560,4 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     </>
   );
 }
+
