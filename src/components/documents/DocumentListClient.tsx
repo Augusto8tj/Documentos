@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users, CalendarIcon } from "lucide-react";
+import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users, CalendarIcon, Filter } from "lucide-react";
 import type { DocumentMetadata } from "@/lib/types";
 import { DocumentType } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
@@ -37,6 +37,12 @@ import { ptBR } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 interface DocumentListClientProps {
   documents: DocumentMetadata[];
@@ -99,7 +105,8 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     setDocumentsToDisplay(prevDocs => prevDocs ? prevDocs.filter(doc => doc.id !== docId) : null);
   };
   
-  const handleClearFilters = () => {
+  const handleClearFilters = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation(); // Prevent accordion from toggling when clear button is clicked
     setFilterName("");
     setFilterType("all");
     setFilterStatus("all");
@@ -111,7 +118,6 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   };
 
   if (documentsToDisplay === null && initialDocuments.length > 0) {
-    // Simplified loading state
      return (
       <div className="rounded-lg border shadow-sm bg-card p-4">
         <div className="animate-pulse">
@@ -137,146 +143,155 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
   return (
     <>
-      <div className="mb-6 p-4 border rounded-lg bg-card shadow-md">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-foreground">Filtros</h3>
-          <Button variant="outline" onClick={handleClearFilters} size="sm">
-            <X className="mr-2 h-4 w-4" />
-            Limpar Filtros
-          </Button>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
-          <div>
-            <Label htmlFor="filterName" className="text-sm font-medium text-muted-foreground db-block mb-1">Nome do Documento</Label>
-            <Input
-              id="filterName"
-              placeholder="Buscar por nome..."
-              value={filterName}
-              onChange={(e) => setFilterName(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="filterNumber" className="text-sm font-medium text-muted-foreground db-block mb-1">Número</Label>
-            <Input
-              id="filterNumber"
-              placeholder="Buscar por número..."
-              value={filterNumber}
-              onChange={(e) => setFilterNumber(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-          <div>
-            <Label htmlFor="filterType" className="text-sm font-medium text-muted-foreground db-block mb-1">Tipo</Label>
-            <Select value={filterType} onValueChange={(value) => setFilterType(value as DocumentType | "all")}>
-              <SelectTrigger id="filterType" className="mt-1">
-                <SelectValue placeholder="Todos os tipos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                {Object.values(DocumentType).map((type) => (
-                  <SelectItem key={type} value={type}>{type}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="filterStatus" className="text-sm font-medium text-muted-foreground db-block mb-1">Status</Label>
-            <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as DocumentMetadata["status"] | "all")}>
-              <SelectTrigger id="filterStatus" className="mt-1">
-                <SelectValue placeholder="Todos os status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="Draft">Rascunho</SelectItem>
-                <SelectItem value="Published">Publicado</SelectItem>
-                <SelectItem value="Archived">Arquivado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="filterCreatedAt" className="text-sm font-medium text-muted-foreground db-block mb-1">Data de Criação</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-full justify-start text-left font-normal mt-1",
-                    !filterCreatedAt && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filterCreatedAt ? format(filterCreatedAt, "dd/MM/yyyy", { locale: ptBR }) : <span>Escolha uma data</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={filterCreatedAt}
-                  onSelect={setFilterCreatedAt}
-                  initialFocus
-                  locale={ptBR}
+      <Accordion type="single" collapsible className="mb-6 bg-card border rounded-lg shadow-md" defaultValue="item-1">
+        <AccordionItem value="item-1" className="border-b-0">
+          <AccordionTrigger className="p-4 hover:no-underline">
+            <div className="flex justify-between items-center w-full">
+              <div className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                <h3 className="text-lg font-semibold text-foreground">Filtros</h3>
+              </div>
+              <Button variant="outline" onClick={handleClearFilters} size="sm">
+                <X className="mr-2 h-4 w-4" />
+                Limpar Filtros
+              </Button>
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="p-4 pt-0"> {/* Adjusted padding here */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end pt-2">
+              <div>
+                <Label htmlFor="filterName" className="text-sm font-medium text-muted-foreground db-block mb-1">Nome do Documento</Label>
+                <Input
+                  id="filterName"
+                  placeholder="Buscar por nome..."
+                  value={filterName}
+                  onChange={(e) => setFilterName(e.target.value)}
+                  className="mt-1"
                 />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <div>
-            <Label htmlFor="filterUpdatedAt" className="text-sm font-medium text-muted-foreground db-block mb-1">Data Últ. Modificação</Label>
-             <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant={"outline"}
-                  className={cn(
-                    "w-full justify-start text-left font-normal mt-1",
-                    !filterUpdatedAt && "text-muted-foreground"
-                  )}
-                >
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filterUpdatedAt ? format(filterUpdatedAt, "dd/MM/yyyy", { locale: ptBR }) : <span>Escolha uma data</span>}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0">
-                <Calendar
-                  mode="single"
-                  selected={filterUpdatedAt}
-                  onSelect={setFilterUpdatedAt}
-                  initialFocus
-                  locale={ptBR}
+              </div>
+              <div>
+                <Label htmlFor="filterNumber" className="text-sm font-medium text-muted-foreground db-block mb-1">Número</Label>
+                <Input
+                  id="filterNumber"
+                  placeholder="Buscar por número..."
+                  value={filterNumber}
+                  onChange={(e) => setFilterNumber(e.target.value)}
+                  className="mt-1"
                 />
-              </PopoverContent>
-            </Popover>
-          </div>
-          <div>
-            <Label htmlFor="filterHasGoogleDocsLink" className="text-sm font-medium text-muted-foreground db-block mb-1">
-              <Link2 className="inline mr-1 h-4 w-4" />
-              Link Google Docs?
-            </Label>
-            <Select value={filterHasGoogleDocsLink} onValueChange={(value) => setFilterHasGoogleDocsLink(value as "all" | "yes" | "no")}>
-              <SelectTrigger id="filterHasGoogleDocsLink" className="mt-1">
-                <SelectValue placeholder="Todos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos</SelectItem>
-                <SelectItem value="yes">Sim</SelectItem>
-                <SelectItem value="no">Não</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="filterSharedEmail" className="text-sm font-medium text-muted-foreground db-block mb-1">
-              <Users className="inline mr-1 h-4 w-4" />
-              Compartilhado com
-            </Label>
-            <Input
-              id="filterSharedEmail"
-              placeholder="Buscar por e-mail..."
-              value={filterSharedEmail}
-              onChange={(e) => setFilterSharedEmail(e.target.value)}
-              className="mt-1"
-            />
-          </div>
-        </div>
-      </div>
+              </div>
+              <div>
+                <Label htmlFor="filterType" className="text-sm font-medium text-muted-foreground db-block mb-1">Tipo</Label>
+                <Select value={filterType} onValueChange={(value) => setFilterType(value as DocumentType | "all")}>
+                  <SelectTrigger id="filterType" className="mt-1">
+                    <SelectValue placeholder="Todos os tipos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    {Object.values(DocumentType).map((type) => (
+                      <SelectItem key={type} value={type}>{type}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="filterStatus" className="text-sm font-medium text-muted-foreground db-block mb-1">Status</Label>
+                <Select value={filterStatus} onValueChange={(value) => setFilterStatus(value as DocumentMetadata["status"] | "all")}>
+                  <SelectTrigger id="filterStatus" className="mt-1">
+                    <SelectValue placeholder="Todos os status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os status</SelectItem>
+                    <SelectItem value="Draft">Rascunho</SelectItem>
+                    <SelectItem value="Published">Publicado</SelectItem>
+                    <SelectItem value="Archived">Arquivado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="filterCreatedAt" className="text-sm font-medium text-muted-foreground db-block mb-1">Data de Criação</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal mt-1",
+                        !filterCreatedAt && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {filterCreatedAt ? format(filterCreatedAt, "dd/MM/yyyy", { locale: ptBR }) : <span>Escolha uma data</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={filterCreatedAt}
+                      onSelect={setFilterCreatedAt}
+                      initialFocus
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label htmlFor="filterUpdatedAt" className="text-sm font-medium text-muted-foreground db-block mb-1">Data Últ. Modificação</Label>
+                 <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal mt-1",
+                        !filterUpdatedAt && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {filterUpdatedAt ? format(filterUpdatedAt, "dd/MM/yyyy", { locale: ptBR }) : <span>Escolha uma data</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={filterUpdatedAt}
+                      onSelect={setFilterUpdatedAt}
+                      initialFocus
+                      locale={ptBR}
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div>
+                <Label htmlFor="filterHasGoogleDocsLink" className="text-sm font-medium text-muted-foreground db-block mb-1">
+                  <Link2 className="inline mr-1 h-4 w-4" />
+                  Link Google Docs?
+                </Label>
+                <Select value={filterHasGoogleDocsLink} onValueChange={(value) => setFilterHasGoogleDocsLink(value as "all" | "yes" | "no")}>
+                  <SelectTrigger id="filterHasGoogleDocsLink" className="mt-1">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="yes">Sim</SelectItem>
+                    <SelectItem value="no">Não</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="filterSharedEmail" className="text-sm font-medium text-muted-foreground db-block mb-1">
+                  <Users className="inline mr-1 h-4 w-4" />
+                  Compartilhado com
+                </Label>
+                <Input
+                  id="filterSharedEmail"
+                  placeholder="Buscar por e-mail..."
+                  value={filterSharedEmail}
+                  onChange={(e) => setFilterSharedEmail(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
 
       <div className="rounded-lg border shadow-sm bg-card">
         <Table>
@@ -353,3 +368,5 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   );
 }
 
+
+    
