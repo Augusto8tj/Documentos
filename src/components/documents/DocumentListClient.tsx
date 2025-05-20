@@ -28,12 +28,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users } from "lucide-react";
+import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users, CalendarIcon } from "lucide-react";
 import type { DocumentMetadata } from "@/lib/types";
 import { DocumentType } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
-import { format } from "date-fns";
+import { format, isSameDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 interface DocumentListClientProps {
   documents: DocumentMetadata[];
@@ -54,6 +57,10 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const [filterStatus, setFilterStatus] = useState<DocumentMetadata["status"] | "all">("all");
   const [filterHasGoogleDocsLink, setFilterHasGoogleDocsLink] = useState<"all" | "yes" | "no">("all");
   const [filterSharedEmail, setFilterSharedEmail] = useState("");
+  const [filterNumber, setFilterNumber] = useState("");
+  const [filterCreatedAt, setFilterCreatedAt] = useState<Date | undefined>(undefined);
+  const [filterUpdatedAt, setFilterUpdatedAt] = useState<Date | undefined>(undefined);
+
 
   useEffect(() => {
     const filtered = initialDocuments.filter(doc => {
@@ -65,7 +72,11 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                              (filterHasGoogleDocsLink === "no" && !doc.googleDocsId);
       const sharedEmailMatch = filterSharedEmail === "" ||
                                (doc.sharedWith && doc.sharedWith.some(user => user.email.toLowerCase().includes(filterSharedEmail.toLowerCase())));
-      return nameMatch && typeMatch && statusMatch && googleDocsMatch && sharedEmailMatch;
+      const numberMatch = filterNumber === "" || doc.number.toLowerCase().includes(filterNumber.toLowerCase());
+      const createdAtMatch = !filterCreatedAt || isSameDay(new Date(doc.createdAt), filterCreatedAt);
+      const updatedAtMatch = !filterUpdatedAt || isSameDay(new Date(doc.updatedAt), filterUpdatedAt);
+
+      return nameMatch && typeMatch && statusMatch && googleDocsMatch && sharedEmailMatch && numberMatch && createdAtMatch && updatedAtMatch;
     });
 
     const docsWithFormattedData = filtered.map(doc => ({
@@ -74,7 +85,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
       displayStatus: doc.status === "Published" ? "Publicado" : doc.status === "Draft" ? "Rascunho" : doc.status,
     }));
     setDocumentsToDisplay(docsWithFormattedData);
-  }, [initialDocuments, filterName, filterType, filterStatus, filterHasGoogleDocsLink, filterSharedEmail]);
+  }, [initialDocuments, filterName, filterType, filterStatus, filterHasGoogleDocsLink, filterSharedEmail, filterNumber, filterCreatedAt, filterUpdatedAt]);
 
   const handleShare = (doc: DocumentMetadata) => {
     setSelectedDocumentForShare(doc);
@@ -94,41 +105,30 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     setFilterStatus("all");
     setFilterHasGoogleDocsLink("all");
     setFilterSharedEmail("");
+    setFilterNumber("");
+    setFilterCreatedAt(undefined);
+    setFilterUpdatedAt(undefined);
   };
 
   if (documentsToDisplay === null && initialDocuments.length > 0) {
-    return (
-      <div className="rounded-lg border shadow-sm bg-card">
-        <div className="mb-4 p-4 border rounded-lg bg-card shadow">
-          <h3 className="text-lg font-semibold mb-3 text-foreground">Filtros</h3>
-          {/* Placeholder for filters while loading */}
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-4">
-            <div className="h-10 bg-muted rounded-md animate-pulse"></div>
-            <div className="h-10 bg-muted rounded-md animate-pulse"></div>
-            <div className="h-10 bg-muted rounded-md animate-pulse"></div>
-            <div className="h-10 bg-muted rounded-md animate-pulse md:hidden lg:block"></div>
-            <div className="h-10 bg-muted rounded-md animate-pulse md:hidden lg:block"></div>
+    // Simplified loading state
+     return (
+      <div className="rounded-lg border shadow-sm bg-card p-4">
+        <div className="animate-pulse">
+          <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="space-y-1">
+                <div className="h-4 bg-muted rounded w-1/3"></div>
+                <div className="h-10 bg-muted rounded"></div>
+              </div>
+            ))}
           </div>
+          <div className="h-10 bg-muted rounded w-full mb-2"></div>
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-12 bg-muted rounded w-full mb-1"></div>
+          ))}
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[250px]">Nome</TableHead>
-              <TableHead>Tipo</TableHead>
-              <TableHead>Número</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Última Modificação</TableHead>
-              <TableHead className="text-right">Ações</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow>
-              <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                Carregando dados dos documentos...
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
       </div>
     );
   }
@@ -145,7 +145,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
             Limpar Filtros
           </Button>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end">
           <div>
             <Label htmlFor="filterName" className="text-sm font-medium text-muted-foreground db-block mb-1">Nome do Documento</Label>
             <Input
@@ -153,6 +153,16 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
               placeholder="Buscar por nome..."
               value={filterName}
               onChange={(e) => setFilterName(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label htmlFor="filterNumber" className="text-sm font-medium text-muted-foreground db-block mb-1">Número</Label>
+            <Input
+              id="filterNumber"
+              placeholder="Buscar por número..."
+              value={filterNumber}
+              onChange={(e) => setFilterNumber(e.target.value)}
               className="mt-1"
             />
           </div>
@@ -185,9 +195,61 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
             </Select>
           </div>
           <div>
+            <Label htmlFor="filterCreatedAt" className="text-sm font-medium text-muted-foreground db-block mb-1">Data de Criação</Label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal mt-1",
+                    !filterCreatedAt && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {filterCreatedAt ? format(filterCreatedAt, "dd/MM/yyyy", { locale: ptBR }) : <span>Escolha uma data</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={filterCreatedAt}
+                  onSelect={setFilterCreatedAt}
+                  initialFocus
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div>
+            <Label htmlFor="filterUpdatedAt" className="text-sm font-medium text-muted-foreground db-block mb-1">Data Últ. Modificação</Label>
+             <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-full justify-start text-left font-normal mt-1",
+                    !filterUpdatedAt && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {filterUpdatedAt ? format(filterUpdatedAt, "dd/MM/yyyy", { locale: ptBR }) : <span>Escolha uma data</span>}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0">
+                <Calendar
+                  mode="single"
+                  selected={filterUpdatedAt}
+                  onSelect={setFilterUpdatedAt}
+                  initialFocus
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+          <div>
             <Label htmlFor="filterHasGoogleDocsLink" className="text-sm font-medium text-muted-foreground db-block mb-1">
               <Link2 className="inline mr-1 h-4 w-4" />
-              Possui Link Google Docs?
+              Link Google Docs?
             </Label>
             <Select value={filterHasGoogleDocsLink} onValueChange={(value) => setFilterHasGoogleDocsLink(value as "all" | "yes" | "no")}>
               <SelectTrigger id="filterHasGoogleDocsLink" className="mt-1">
@@ -203,7 +265,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
           <div>
             <Label htmlFor="filterSharedEmail" className="text-sm font-medium text-muted-foreground db-block mb-1">
               <Users className="inline mr-1 h-4 w-4" />
-              Compartilhado com E-mail
+              Compartilhado com
             </Label>
             <Input
               id="filterSharedEmail"
