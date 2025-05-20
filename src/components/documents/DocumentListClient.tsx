@@ -32,7 +32,15 @@ import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users, Ca
 import type { DocumentMetadata } from "@/lib/types";
 import { DocumentType } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
-import { format, isSameDay } from "date-fns";
+import { 
+  format, 
+  isSameDay, 
+  isSameWeek, 
+  isSameMonth, 
+  isSameYear, 
+  startOfWeek, 
+  endOfWeek 
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -53,22 +61,27 @@ interface ProcessedDocument extends DocumentMetadata {
   displayStatus: string;
 }
 
+type DateFilterPeriod = "all" | "day" | "week" | "month" | "year";
+
 export function DocumentListClient({ documents: initialDocuments }: DocumentListClientProps) {
   const [processedDocs, setProcessedDocs] = useState<ProcessedDocument[] | null>(null);
   const [selectedDocumentForShare, setSelectedDocumentForShare] = useState<DocumentMetadata | null>(null);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
-  const [filterSearchTerm, setFilterSearchTerm] = useState(""); // Combined search for name and number
+  const [filterSearchTerm, setFilterSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<DocumentType | "all">("all");
   const [filterStatus, setFilterStatus] = useState<DocumentMetadata["status"] | "all">("all");
+  
+  const [filterCreatedAtPeriod, setFilterCreatedAtPeriod] = useState<DateFilterPeriod>("all");
+  const [filterCreatedAtValue, setFilterCreatedAtValue] = useState<Date | undefined>(undefined);
+  
+  const [filterUpdatedAtPeriod, setFilterUpdatedAtPeriod] = useState<DateFilterPeriod>("all");
+  const [filterUpdatedAtValue, setFilterUpdatedAtValue] = useState<Date | undefined>(undefined);
+
   const [filterHasGoogleDocsLink, setFilterHasGoogleDocsLink] = useState<"all" | "yes" | "no">("all");
   const [filterSharedEmail, setFilterSharedEmail] = useState("");
-  const [filterCreatedAt, setFilterCreatedAt] = useState<Date | undefined>(undefined);
-  const [filterUpdatedAt, setFilterUpdatedAt] = useState<Date | undefined>(undefined);
-
 
   useEffect(() => {
-    // Client-side processing for dates
     const formattedInitialDocs = initialDocuments.map(doc => ({
       ...doc,
       displayUpdatedAt: format(new Date(doc.updatedAt), "dd MMM, yyyy", { locale: ptBR }),
@@ -81,20 +94,50 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                               doc.number.toLowerCase().includes(filterSearchTerm.toLowerCase());
       const typeMatch = filterType === "all" || doc.type === filterType;
       const statusMatch = filterStatus === "all" || doc.status === filterStatus;
+      
+      let createdAtMatch = true;
+      if (filterCreatedAtPeriod !== 'all' && filterCreatedAtValue) {
+        const docCreatedAt = new Date(doc.createdAt);
+        if (filterCreatedAtPeriod === 'day') {
+          createdAtMatch = isSameDay(docCreatedAt, filterCreatedAtValue);
+        } else if (filterCreatedAtPeriod === 'week') {
+          createdAtMatch = isSameWeek(docCreatedAt, filterCreatedAtValue, { locale: ptBR });
+        } else if (filterCreatedAtPeriod === 'month') {
+          createdAtMatch = isSameMonth(docCreatedAt, filterCreatedAtValue);
+        } else if (filterCreatedAtPeriod === 'year') {
+          createdAtMatch = isSameYear(docCreatedAt, filterCreatedAtValue);
+        }
+      }
+
+      let updatedAtMatch = true;
+      if (filterUpdatedAtPeriod !== 'all' && filterUpdatedAtValue) {
+        const docUpdatedAt = new Date(doc.updatedAt);
+        if (filterUpdatedAtPeriod === 'day') {
+          updatedAtMatch = isSameDay(docUpdatedAt, filterUpdatedAtValue);
+        } else if (filterUpdatedAtPeriod === 'week') {
+          updatedAtMatch = isSameWeek(docUpdatedAt, filterUpdatedAtValue, { locale: ptBR });
+        } else if (filterUpdatedAtPeriod === 'month') {
+          updatedAtMatch = isSameMonth(docUpdatedAt, filterUpdatedAtValue);
+        } else if (filterUpdatedAtPeriod === 'year') {
+          updatedAtMatch = isSameYear(docUpdatedAt, filterUpdatedAtValue);
+        }
+      }
+
       const googleDocsMatch = filterHasGoogleDocsLink === "all" ||
                              (filterHasGoogleDocsLink === "yes" && !!doc.googleDocsId) ||
                              (filterHasGoogleDocsLink === "no" && !doc.googleDocsId);
       const sharedEmailMatch = filterSharedEmail === "" ||
                                (doc.sharedWith && doc.sharedWith.some(user => user.email.toLowerCase().includes(filterSharedEmail.toLowerCase())));
-      const createdAtMatch = !filterCreatedAt || isSameDay(new Date(doc.createdAt), filterCreatedAt);
-      const updatedAtMatch = !filterUpdatedAt || isSameDay(new Date(doc.updatedAt), filterUpdatedAt);
-
-      return searchTermMatch && typeMatch && statusMatch && googleDocsMatch && sharedEmailMatch && createdAtMatch && updatedAtMatch;
+      
+      return searchTermMatch && typeMatch && statusMatch && createdAtMatch && updatedAtMatch && googleDocsMatch && sharedEmailMatch;
     });
     
     setProcessedDocs(filtered);
 
-  }, [initialDocuments, filterSearchTerm, filterType, filterStatus, filterHasGoogleDocsLink, filterSharedEmail, filterCreatedAt, filterUpdatedAt]);
+  }, [initialDocuments, filterSearchTerm, filterType, filterStatus, 
+      filterCreatedAtPeriod, filterCreatedAtValue, 
+      filterUpdatedAtPeriod, filterUpdatedAtValue,
+      filterHasGoogleDocsLink, filterSharedEmail]);
 
   const handleShare = (doc: DocumentMetadata) => {
     setSelectedDocumentForShare(doc);
@@ -103,7 +146,8 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
   const handleDelete = (docId: string) => {
     console.log("Excluir documento:", docId);
-    // TODO: Call server action to delete document
+    // Here you would typically call a server action to delete the document
+    // For now, just remove from client-side state for demo
     setProcessedDocs(prevDocs => prevDocs ? prevDocs.filter(doc => doc.id !== docId) : null);
   };
   
@@ -111,27 +155,65 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     setFilterSearchTerm("");
     setFilterType("all");
     setFilterStatus("all");
+    setFilterCreatedAtPeriod("all");
+    setFilterCreatedAtValue(undefined);
+    setFilterUpdatedAtPeriod("all");
+    setFilterUpdatedAtValue(undefined);
     setFilterHasGoogleDocsLink("all");
     setFilterSharedEmail("");
-    setFilterCreatedAt(undefined);
-    setFilterUpdatedAt(undefined);
   };
 
+  const handleCreatedAtPeriodChange = (newPeriod: DateFilterPeriod) => {
+    setFilterCreatedAtPeriod(newPeriod);
+    setFilterCreatedAtValue(undefined); // Reset date value when period changes
+  };
+
+  const handleUpdatedAtPeriodChange = (newPeriod: DateFilterPeriod) => {
+    setFilterUpdatedAtPeriod(newPeriod);
+    setFilterUpdatedAtValue(undefined); // Reset date value when period changes
+  };
+  
+  const formatFilterDateButtonText = (period: DateFilterPeriod, value: Date | undefined): string => {
+    if (period === 'all' || !value) {
+      return "Escolha uma data";
+    }
+    switch (period) {
+      case 'day':
+        return format(value, "dd/MM/yyyy", { locale: ptBR });
+      case 'week':
+        const startW = startOfWeek(value, { locale: ptBR });
+        const endW = endOfWeek(value, { locale: ptBR });
+        return `Sem: ${format(startW, "dd/MM", { locale: ptBR })} - ${format(endW, "dd/MM/yy", { locale: ptBR })}`;
+      case 'month':
+        return format(value, "MMMM yyyy", { locale: ptBR });
+      case 'year':
+        return format(value, "yyyy", { locale: ptBR });
+      default:
+        return "Escolha uma data";
+    }
+  };
+
+
    if (processedDocs === null && initialDocuments.length > 0) {
+     // Show a more structured skeleton while initial processing/filtering happens
      return (
       <div className="rounded-lg border shadow-sm bg-card p-4">
         <div className="animate-pulse">
-          <div className="h-8 bg-muted rounded w-1/4 mb-4"></div> {/* Filter accordion trigger placeholder */}
+          {/* Skeleton for filter section header */}
+          <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
+          {/* Skeleton for filter controls */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6 p-4 items-end">
-            {[...Array(7)].map((_, i) => ( // Adjusted for 7 filters after combining name/number
+            {[...Array(7)].map((_, i) => ( // Assuming roughly 7 filter controls
               <div key={i} className="space-y-1">
-                <div className="h-4 bg-muted rounded w-1/3"></div>
-                <div className="h-10 bg-muted rounded"></div>
+                <div className="h-4 bg-muted rounded w-1/3"></div> {/* Label skeleton */}
+                <div className="h-10 bg-muted rounded"></div> {/* Input/Select skeleton */}
               </div>
             ))}
           </div>
-          <div className="h-10 bg-muted rounded w-full mb-2"></div> {/* Table header placeholder */}
-          {[...Array(3)].map((_, i) => ( // Table row placeholders
+          {/* Skeleton for table header */}
+          <div className="h-10 bg-muted rounded w-full mb-2"></div>
+          {/* Skeleton for table rows */}
+          {[...Array(3)].map((_, i) => (
             <div key={i} className="h-12 bg-muted rounded w-full mb-1"></div>
           ))}
         </div>
@@ -146,7 +228,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
       <Accordion type="single" collapsible className="mb-6 bg-card border rounded-lg shadow-md" defaultValue="item-1">
         <AccordionItem value="item-1" className="border-b-0">
           <div className="flex items-center justify-between p-4">
-            <AccordionTrigger className="p-0 hover:no-underline flex-grow text-left">
+             <AccordionTrigger className="p-0 hover:no-underline flex-grow text-left">
               <div className="flex items-center gap-2">
                 <Filter className="h-5 w-5" />
                 <h3 className="text-lg font-semibold text-foreground">Filtros</h3>
@@ -158,7 +240,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
             </Button>
           </div>
           <AccordionContent className="p-4 pt-0">
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-6 items-start pt-2">
               <div>
                 <Label htmlFor="filterSearchTerm" className="text-sm font-medium text-muted-foreground db-block mb-1">Pesquisar Nome/Número</Label>
                 <Input
@@ -197,57 +279,103 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                   </SelectContent>
                 </Select>
               </div>
-              <div>
-                <Label htmlFor="filterCreatedAt" className="text-sm font-medium text-muted-foreground db-block mb-1">Data de Criação</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full justify-start text-left font-normal mt-1",
-                        !filterCreatedAt && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {filterCreatedAt ? format(filterCreatedAt, "dd/MM/yyyy", { locale: ptBR }) : <span>Escolha uma data</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={filterCreatedAt}
-                      onSelect={setFilterCreatedAt}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
+              
+              {/* Created At Filter */}
+              <div className="space-y-1">
+                <Label htmlFor="filterCreatedAtPeriodSelect" className="text-sm font-medium text-muted-foreground">Data de Criação</Label>
+                <div className="flex gap-2 mt-1">
+                  <Select 
+                    value={filterCreatedAtPeriod} 
+                    onValueChange={(value) => handleCreatedAtPeriodChange(value as DateFilterPeriod)}
+                    name="filterCreatedAtPeriodSelect" // Added name for accessibility/testing
+                    aria-label="Período do filtro de data de criação" // Added aria-label
+                  >
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue placeholder="Período" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Qualquer</SelectItem>
+                      <SelectItem value="day">Dia</SelectItem>
+                      <SelectItem value="week">Semana</SelectItem>
+                      <SelectItem value="month">Mês</SelectItem>
+                      <SelectItem value="year">Ano</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        disabled={filterCreatedAtPeriod === 'all'}
+                        className={cn(
+                          "flex-grow justify-start text-left font-normal",
+                          !filterCreatedAtValue && filterCreatedAtPeriod !== 'all' && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formatFilterDateButtonText(filterCreatedAtPeriod, filterCreatedAtValue)}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={filterCreatedAtValue}
+                        onSelect={setFilterCreatedAtValue}
+                        initialFocus
+                        locale={ptBR}
+                        disabled={filterCreatedAtPeriod === 'all'} // Disable if "all" is selected
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="filterUpdatedAt" className="text-sm font-medium text-muted-foreground db-block mb-1">Data Últ. Modificação</Label>
-                 <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant={"outline"}
-                      className={cn(
-                        "w-full justify-start text-left font-normal mt-1",
-                        !filterUpdatedAt && "text-muted-foreground"
-                      )}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {filterUpdatedAt ? format(filterUpdatedAt, "dd/MM/yyyy", { locale: ptBR }) : <span>Escolha uma data</span>}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0">
-                    <Calendar
-                      mode="single"
-                      selected={filterUpdatedAt}
-                      onSelect={setFilterUpdatedAt}
-                      initialFocus
-                      locale={ptBR}
-                    />
-                  </PopoverContent>
-                </Popover>
+
+              {/* Updated At Filter */}
+              <div className="space-y-1">
+                <Label htmlFor="filterUpdatedAtPeriodSelect" className="text-sm font-medium text-muted-foreground">Data Últ. Modificação</Label>
+                 <div className="flex gap-2 mt-1">
+                  <Select 
+                    value={filterUpdatedAtPeriod} 
+                    onValueChange={(value) => handleUpdatedAtPeriodChange(value as DateFilterPeriod)}
+                    name="filterUpdatedAtPeriodSelect" // Added name
+                    aria-label="Período do filtro de data de última modificação" // Added aria-label
+                  >
+                    <SelectTrigger className="w-[120px]">
+                      <SelectValue placeholder="Período" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Qualquer</SelectItem>
+                      <SelectItem value="day">Dia</SelectItem>
+                      <SelectItem value="week">Semana</SelectItem>
+                      <SelectItem value="month">Mês</SelectItem>
+                      <SelectItem value="year">Ano</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant={"outline"}
+                        disabled={filterUpdatedAtPeriod === 'all'}
+                        className={cn(
+                          "flex-grow justify-start text-left font-normal",
+                          !filterUpdatedAtValue && filterUpdatedAtPeriod !== 'all' && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {formatFilterDateButtonText(filterUpdatedAtPeriod, filterUpdatedAtValue)}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={filterUpdatedAtValue}
+                        onSelect={setFilterUpdatedAtValue}
+                        initialFocus
+                        locale={ptBR}
+                        disabled={filterUpdatedAtPeriod === 'all'} // Disable if "all" is selected
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
               <div>
                 <Label htmlFor="filterHasGoogleDocsLink" className="text-sm font-medium text-muted-foreground db-block mb-1">
@@ -357,5 +485,3 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     </>
   );
 }
-
-    
