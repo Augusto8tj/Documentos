@@ -48,29 +48,37 @@ interface DocumentListClientProps {
   documents: DocumentMetadata[];
 }
 
-interface DocumentMetadataWithDisplayDate extends DocumentMetadata {
+interface ProcessedDocument extends DocumentMetadata {
   displayUpdatedAt: string;
   displayStatus: string;
 }
 
 export function DocumentListClient({ documents: initialDocuments }: DocumentListClientProps) {
-  const [documentsToDisplay, setDocumentsToDisplay] = useState<DocumentMetadataWithDisplayDate[] | null>(null);
+  const [processedDocs, setProcessedDocs] = useState<ProcessedDocument[] | null>(null);
   const [selectedDocumentForShare, setSelectedDocumentForShare] = useState<DocumentMetadata | null>(null);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
-  const [filterName, setFilterName] = useState("");
+  const [filterSearchTerm, setFilterSearchTerm] = useState(""); // Combined search for name and number
   const [filterType, setFilterType] = useState<DocumentType | "all">("all");
   const [filterStatus, setFilterStatus] = useState<DocumentMetadata["status"] | "all">("all");
   const [filterHasGoogleDocsLink, setFilterHasGoogleDocsLink] = useState<"all" | "yes" | "no">("all");
   const [filterSharedEmail, setFilterSharedEmail] = useState("");
-  const [filterNumber, setFilterNumber] = useState("");
   const [filterCreatedAt, setFilterCreatedAt] = useState<Date | undefined>(undefined);
   const [filterUpdatedAt, setFilterUpdatedAt] = useState<Date | undefined>(undefined);
 
 
   useEffect(() => {
-    const filtered = initialDocuments.filter(doc => {
-      const nameMatch = filterName === "" || doc.name.toLowerCase().includes(filterName.toLowerCase());
+    // Client-side processing for dates
+    const formattedInitialDocs = initialDocuments.map(doc => ({
+      ...doc,
+      displayUpdatedAt: format(new Date(doc.updatedAt), "dd MMM, yyyy", { locale: ptBR }),
+      displayStatus: doc.status === "Published" ? "Publicado" : doc.status === "Draft" ? "Rascunho" : doc.status,
+    }));
+
+    const filtered = formattedInitialDocs.filter(doc => {
+      const searchTermMatch = filterSearchTerm === "" || 
+                              doc.name.toLowerCase().includes(filterSearchTerm.toLowerCase()) ||
+                              doc.number.toLowerCase().includes(filterSearchTerm.toLowerCase());
       const typeMatch = filterType === "all" || doc.type === filterType;
       const statusMatch = filterStatus === "all" || doc.status === filterStatus;
       const googleDocsMatch = filterHasGoogleDocsLink === "all" ||
@@ -78,20 +86,15 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                              (filterHasGoogleDocsLink === "no" && !doc.googleDocsId);
       const sharedEmailMatch = filterSharedEmail === "" ||
                                (doc.sharedWith && doc.sharedWith.some(user => user.email.toLowerCase().includes(filterSharedEmail.toLowerCase())));
-      const numberMatch = filterNumber === "" || doc.number.toLowerCase().includes(filterNumber.toLowerCase());
       const createdAtMatch = !filterCreatedAt || isSameDay(new Date(doc.createdAt), filterCreatedAt);
       const updatedAtMatch = !filterUpdatedAt || isSameDay(new Date(doc.updatedAt), filterUpdatedAt);
 
-      return nameMatch && typeMatch && statusMatch && googleDocsMatch && sharedEmailMatch && numberMatch && createdAtMatch && updatedAtMatch;
+      return searchTermMatch && typeMatch && statusMatch && googleDocsMatch && sharedEmailMatch && createdAtMatch && updatedAtMatch;
     });
+    
+    setProcessedDocs(filtered);
 
-    const docsWithFormattedData = filtered.map(doc => ({
-      ...doc,
-      displayUpdatedAt: format(new Date(doc.updatedAt), "dd MMM, yyyy", { locale: ptBR }),
-      displayStatus: doc.status === "Published" ? "Publicado" : doc.status === "Draft" ? "Rascunho" : doc.status,
-    }));
-    setDocumentsToDisplay(docsWithFormattedData);
-  }, [initialDocuments, filterName, filterType, filterStatus, filterHasGoogleDocsLink, filterSharedEmail, filterNumber, filterCreatedAt, filterUpdatedAt]);
+  }, [initialDocuments, filterSearchTerm, filterType, filterStatus, filterHasGoogleDocsLink, filterSharedEmail, filterCreatedAt, filterUpdatedAt]);
 
   const handleShare = (doc: DocumentMetadata) => {
     setSelectedDocumentForShare(doc);
@@ -101,37 +104,34 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const handleDelete = (docId: string) => {
     console.log("Excluir documento:", docId);
     // TODO: Call server action to delete document
-    // For now, just filter out from client-side display
-    setDocumentsToDisplay(prevDocs => prevDocs ? prevDocs.filter(doc => doc.id !== docId) : null);
+    setProcessedDocs(prevDocs => prevDocs ? prevDocs.filter(doc => doc.id !== docId) : null);
   };
   
-  const handleClearFilters = (e: React.MouseEvent<HTMLButtonElement>) => {
-    // e.stopPropagation(); // No longer needed here as button is not inside trigger
-    setFilterName("");
+  const handleClearFilters = () => {
+    setFilterSearchTerm("");
     setFilterType("all");
     setFilterStatus("all");
     setFilterHasGoogleDocsLink("all");
     setFilterSharedEmail("");
-    setFilterNumber("");
     setFilterCreatedAt(undefined);
     setFilterUpdatedAt(undefined);
   };
 
-  if (documentsToDisplay === null && initialDocuments.length > 0) {
+   if (processedDocs === null && initialDocuments.length > 0) {
      return (
       <div className="rounded-lg border shadow-sm bg-card p-4">
         <div className="animate-pulse">
-          <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-            {[...Array(8)].map((_, i) => (
+          <div className="h-8 bg-muted rounded w-1/4 mb-4"></div> {/* Filter accordion trigger placeholder */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6 p-4 items-end">
+            {[...Array(7)].map((_, i) => ( // Adjusted for 7 filters after combining name/number
               <div key={i} className="space-y-1">
                 <div className="h-4 bg-muted rounded w-1/3"></div>
                 <div className="h-10 bg-muted rounded"></div>
               </div>
             ))}
           </div>
-          <div className="h-10 bg-muted rounded w-full mb-2"></div>
-          {[...Array(3)].map((_, i) => (
+          <div className="h-10 bg-muted rounded w-full mb-2"></div> {/* Table header placeholder */}
+          {[...Array(3)].map((_, i) => ( // Table row placeholders
             <div key={i} className="h-12 bg-muted rounded w-full mb-1"></div>
           ))}
         </div>
@@ -139,21 +139,20 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     );
   }
   
-  const currentDocuments = documentsToDisplay || [];
+  const currentDocuments = processedDocs || [];
 
   return (
     <>
       <Accordion type="single" collapsible className="mb-6 bg-card border rounded-lg shadow-md" defaultValue="item-1">
         <AccordionItem value="item-1" className="border-b-0">
-          <div className="flex items-center justify-between p-4"> {/* Custom header for the accordion item */}
-            <AccordionTrigger className="p-0 hover:no-underline flex-grow text-left"> {/* Trigger contains only non-button elements */}
+          <div className="flex items-center justify-between p-4">
+            <AccordionTrigger className="p-0 hover:no-underline flex-grow text-left">
               <div className="flex items-center gap-2">
                 <Filter className="h-5 w-5" />
                 <h3 className="text-lg font-semibold text-foreground">Filtros</h3>
               </div>
-              {/* Chevron is added automatically by AccordionTrigger */}
             </AccordionTrigger>
-            <Button variant="outline" onClick={handleClearFilters} size="sm" className="ml-4 flex-shrink-0"> {/* Sibling to AccordionTrigger */}
+            <Button variant="outline" onClick={handleClearFilters} size="sm" className="ml-4 flex-shrink-0">
               <X className="mr-2 h-4 w-4" />
               Limpar Filtros
             </Button>
@@ -161,22 +160,12 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
           <AccordionContent className="p-4 pt-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end pt-2">
               <div>
-                <Label htmlFor="filterName" className="text-sm font-medium text-muted-foreground db-block mb-1">Nome do Documento</Label>
+                <Label htmlFor="filterSearchTerm" className="text-sm font-medium text-muted-foreground db-block mb-1">Pesquisar Nome/Número</Label>
                 <Input
-                  id="filterName"
-                  placeholder="Buscar por nome..."
-                  value={filterName}
-                  onChange={(e) => setFilterName(e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="filterNumber" className="text-sm font-medium text-muted-foreground db-block mb-1">Número</Label>
-                <Input
-                  id="filterNumber"
-                  placeholder="Buscar por número..."
-                  value={filterNumber}
-                  onChange={(e) => setFilterNumber(e.target.value)}
+                  id="filterSearchTerm"
+                  placeholder="Digite nome ou número..."
+                  value={filterSearchTerm}
+                  onChange={(e) => setFilterSearchTerm(e.target.value)}
                   className="mt-1"
                 />
               </div>
