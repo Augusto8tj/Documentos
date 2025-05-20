@@ -33,10 +33,10 @@ import React from "react";
 
 const formSchema = z.object({
   name: z.string().min(3, {
-    message: "Document name must be at least 3 characters.",
+    message: "O nome do documento deve ter pelo menos 3 caracteres.",
   }),
   type: z.nativeEnum(DocumentType, {
-    errorMap: () => ({ message: "Please select a document type." }),
+    errorMap: () => ({ message: "Por favor, selecione um tipo de documento." }),
   }),
   // content: z.string().optional(), // For initial notes or brief content
 });
@@ -67,14 +67,14 @@ export function CreateDocumentForm() {
 
     if (result.success) {
       toast({
-        title: "Document Created",
-        description: `"${values.name}" has been successfully created. Numbering and Google Docs link will be simulated.`,
+        title: "Documento Criado",
+        description: `"${values.name}" foi criado com sucesso. A numeração e o link do Google Docs serão simulados.`,
       });
       router.push("/"); // Redirect to dashboard
     } else {
       toast({
-        title: "Error Creating Document",
-        description: result.error ? JSON.stringify(result.error) : "An unknown error occurred.",
+        title: "Erro ao Criar Documento",
+        description: result.error ? JSON.stringify(result.error) : "Ocorreu um erro desconhecido.",
         variant: "destructive",
       });
     }
@@ -83,9 +83,9 @@ export function CreateDocumentForm() {
   return (
     <Card className="w-full max-w-2xl mx-auto shadow-lg">
       <CardHeader>
-        <CardTitle className="text-2xl">Create New Document</CardTitle>
+        <CardTitle className="text-2xl">Criar Novo Documento</CardTitle>
         <CardDescription>
-          Fill in the details below. Automatic numbering will be applied, and the document will be (simulated) created in Google Docs.
+          Preencha os detalhes abaixo. A numeração automática será aplicada e o documento será (simulado) criado no Google Docs.
         </CardDescription>
       </CardHeader>
       <Form {...form}>
@@ -96,12 +96,12 @@ export function CreateDocumentForm() {
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Document Name</FormLabel>
+                  <FormLabel>Nome do Documento</FormLabel>
                   <FormControl>
                     <Input placeholder="e.g., Solicitação de Férias" {...field} />
                   </FormControl>
                   <FormDescription>
-                    Enter a descriptive name for your document.
+                    Insira um nome descritivo para o seu documento.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -112,11 +112,11 @@ export function CreateDocumentForm() {
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Document Type</FormLabel>
+                  <FormLabel>Tipo de Documento</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a document type" />
+                        <SelectValue placeholder="Selecione um tipo de documento" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -128,7 +128,7 @@ export function CreateDocumentForm() {
                     </SelectContent>
                   </Select>
                   <FormDescription>
-                    Choose the category for this document.
+                    Escolha a categoria para este documento.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -140,17 +140,17 @@ export function CreateDocumentForm() {
               name="content"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Initial Notes (Optional)</FormLabel>
+                  <FormLabel>Notas Iniciais (Opcional)</FormLabel>
                   <FormControl>
                     <Textarea
-                      placeholder="Add any initial notes or a brief summary for the document..."
+                      placeholder="Adicione notas iniciais ou um breve resumo para o documento..."
                       className="resize-none"
                       {...field}
                       rows={5}
                     />
                   </FormControl>
                    <FormDescription>
-                    This content is for internal reference or can be used as a starting point in Google Docs.
+                    Este conteúdo é para referência interna ou pode ser usado como ponto de partida no Google Docs.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -161,7 +161,7 @@ export function CreateDocumentForm() {
           <CardFooter className="flex justify-end pt-6">
             <Button type="submit" disabled={isSubmitting} className="bg-primary hover:bg-primary/90 text-primary-foreground">
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Document
+              Criar Documento
             </Button>
           </CardFooter>
         </form>

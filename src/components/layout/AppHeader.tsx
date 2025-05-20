@@ -28,7 +28,7 @@ export function AppHeader() {
          <SidebarTrigger />
          <Link href="/" className="flex items-center gap-2 text-lg font-semibold md:text-base">
             <AppLogo className="h-6 w-6 text-primary" />
-            <span className="sr-only">Document Flow</span>
+            <span className="sr-only">Fluxo de Documentos</span>
           </Link>
         </div>
       )}
@@ -48,21 +48,21 @@ export function AppHeader() {
           </form>
           */}
         </div>
-        <h1 className="text-xl font-semibold text-foreground whitespace-nowrap">Document Flow</h1>
+        <h1 className="text-xl font-semibold text-foreground whitespace-nowrap">Fluxo de Documentos</h1>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="rounded-full">
               <UserCircle className="h-6 w-6" />
-              <span className="sr-only">Toggle user menu</span>
+              <span className="sr-only">Alternar menu do usuário</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Settings</DropdownMenuItem>
-            <DropdownMenuItem>Support</DropdownMenuItem>
+            <DropdownMenuItem>Configurações</DropdownMenuItem>
+            <DropdownMenuItem>Suporte</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Logout</DropdownMenuItem>
+            <DropdownMenuItem>Sair</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

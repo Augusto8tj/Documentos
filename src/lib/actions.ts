@@ -7,7 +7,7 @@ import { addDocument as dbAddDocument, updateDocumentSharing as dbUpdateDocument
 import { revalidatePath } from "next/cache";
 
 const CreateDocumentSchema = z.object({
-  name: z.string().min(3, "Name must be at least 3 characters"),
+  name: z.string().min(3, "O nome do documento deve ter pelo menos 3 caracteres"),
   type: z.nativeEnum(DocumentType),
   // content: z.string().optional(), // If initial content is captured
 });
@@ -20,7 +20,7 @@ export async function createDocumentAction(formData: FormData) {
 
   if (!validatedFields.success) {
     return {
-      error: "Invalid data. " + validatedFields.error.flatten().fieldErrors,
+      error: "Dados inválidos. " + JSON.stringify(validatedFields.error.flatten().fieldErrors),
     };
   }
 
@@ -59,29 +59,33 @@ export async function createDocumentAction(formData: FormData) {
 const ShareDocumentSchema = z.object({
   documentId: z.string(),
   sharedWith: z.array(z.object({
-    email: z.string().email(),
+    email: z.string().email("Formato de e-mail inválido."),
     permission: z.enum(["view", "edit"]),
-  })),
+  })).optional(), // Made optional to allow empty array for removing all users
 });
 
-export async function shareDocumentAction(documentId: string, sharedWith: DocumentMetadata['sharedWith']) {
+export async function shareDocumentAction(documentId: string, sharedWithInput: DocumentMetadata['sharedWith']) {
   const validatedFields = ShareDocumentSchema.safeParse({
     documentId,
-    sharedWith,
+    sharedWith: sharedWithInput || [], // Ensure sharedWith is an array
   });
 
   if (!validatedFields.success) {
     return {
-      error: "Invalid sharing data. " + validatedFields.error.flatten().fieldErrors,
+      // error: "Dados de compartilhamento inválidos. " + JSON.stringify(validatedFields.error.flatten().fieldErrors),
+      error: "Dados de compartilhamento inválidos. Verifique os e-mails e permissões.",
     };
   }
   
+  const { sharedWith } = validatedFields.data;
+
   // Simulate updating Google Docs sharing permissions
   // For now, update mock data
-  dbUpdateDocumentSharing(validatedFields.data.documentId, validatedFields.data.sharedWith);
+  dbUpdateDocumentSharing(validatedFields.data.documentId, sharedWith);
   // console.log(`Simulated sharing update for doc ${documentId}:`, sharedWith);
 
   revalidatePath("/"); // Revalidate dashboard to reflect sharing changes if displayed
+  revalidatePath(`/documents/${documentId}`); // Revalidate document detail page
 
   return { success: true };
 }

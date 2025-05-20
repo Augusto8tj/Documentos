@@ -23,6 +23,7 @@ import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye } from "lucide-react
 import type { DocumentMetadata } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface DocumentListClientProps {
   documents: DocumentMetadata[];
@@ -30,6 +31,7 @@ interface DocumentListClientProps {
 
 interface DocumentMetadataWithDisplayDate extends DocumentMetadata {
   displayUpdatedAt: string;
+  displayStatus: string;
 }
 
 export function DocumentListClient({ documents: initialDocuments }: DocumentListClientProps) {
@@ -38,12 +40,13 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
   useEffect(() => {
-    // Format dates on the client side after initial hydration
-    const docsWithFormattedDates = initialDocuments.map(doc => ({
+    // Format dates and status on the client side after initial hydration
+    const docsWithFormattedData = initialDocuments.map(doc => ({
       ...doc,
-      displayUpdatedAt: format(new Date(doc.updatedAt), "MMM dd, yyyy")
+      displayUpdatedAt: format(new Date(doc.updatedAt), "dd MMM, yyyy", { locale: ptBR }),
+      displayStatus: doc.status === "Published" ? "Publicado" : doc.status === "Draft" ? "Rascunho" : doc.status,
     }));
-    setProcessedDocs(docsWithFormattedDates);
+    setProcessedDocs(docsWithFormattedData);
   }, [initialDocuments]);
 
   const handleShare = (doc: DocumentMetadata) => {
@@ -52,7 +55,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   };
 
   const handleDelete = (docId: string) => {
-    console.log("Delete document:", docId);
+    console.log("Excluir documento:", docId);
     setProcessedDocs(prevDocs => prevDocs ? prevDocs.filter(doc => doc.id !== docId) : null);
     // TODO: Call server action to delete document
   };
@@ -64,18 +67,18 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[250px]">Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Number</TableHead>
+              <TableHead className="w-[250px]">Nome</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Número</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Last Modified</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Última Modificação</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             <TableRow>
               <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                Loading document dates...
+                Carregando dados dos documentos...
               </TableCell>
             </TableRow>
           </TableBody>
@@ -92,19 +95,19 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[250px]">Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Number</TableHead>
+              <TableHead className="w-[250px]">Nome</TableHead>
+              <TableHead>Tipo</TableHead>
+              <TableHead>Número</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Last Modified</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
+              <TableHead>Última Modificação</TableHead>
+              <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {documentsToDisplay.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
-                  No documents found.
+                  Nenhum documento encontrado.
                 </TableCell>
               </TableRow>
             ) : (
@@ -119,7 +122,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                   <TableCell className="text-muted-foreground">{doc.number}</TableCell>
                   <TableCell>
                     <Badge variant={doc.status === "Published" ? "default" : "secondary"} className={doc.status === "Published" ? "bg-accent text-accent-foreground" : ""}>
-                      {doc.status}
+                      {doc.displayStatus}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground">
@@ -130,20 +133,20 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="icon">
                           <MoreVertical className="h-4 w-4" />
-                          <span className="sr-only">Actions</span>
+                          <span className="sr-only">Ações</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                           <Link href={`/documents/${doc.id}/edit`} className="flex items-center"> {/* Placeholder edit link */}
-                            <Eye className="mr-2 h-4 w-4" /> View/Edit
+                           <Link href={`/documents/${doc.id}/edit`} className="flex items-center">
+                            <Eye className="mr-2 h-4 w-4" /> Visualizar/Editar
                           </Link>
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleShare(doc)} className="flex items-center">
-                          <Share2 className="mr-2 h-4 w-4" /> Share
+                          <Share2 className="mr-2 h-4 w-4" /> Compartilhar
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleDelete(doc.id)} className="text-destructive flex items-center">
-                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                          <Trash2 className="mr-2 h-4 w-4" /> Excluir
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

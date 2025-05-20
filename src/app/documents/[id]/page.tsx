@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, Share2, Edit3 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 
 interface DocumentDetailPageProps {
   params: { id: string };
@@ -18,12 +19,18 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
     notFound();
   }
 
+  const getPermissionLabel = (permission: "view" | "edit") => {
+    if (permission === "view") return "visualizar";
+    if (permission === "edit") return "editar";
+    return permission;
+  };
+
   return (
     <div className="container mx-auto py-2">
       <div className="mb-6">
         <Link href="/" passHref>
           <Button variant="outline" className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para o Painel
           </Button>
         </Link>
       </div>
@@ -34,13 +41,13 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
             <div>
               <CardTitle className="text-2xl md:text-3xl">{document.name}</CardTitle>
               <CardDescription className="mt-1">
-                {document.type} - Number: {document.number}
+                {document.type} - Número: {document.number}
               </CardDescription>
             </div>
             {document.googleDocsId && (
               <Button variant="outline" asChild>
                 <a href={`https://docs.google.com/document/d/${document.googleDocsId}/edit`} target="_blank" rel="noopener noreferrer">
-                  Open in Google Docs <ExternalLink className="ml-2 h-4 w-4" />
+                  Abrir no Google Docs <ExternalLink className="ml-2 h-4 w-4" />
                 </a>
               </Button>
             )}
@@ -49,37 +56,39 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
         <CardContent className="space-y-4">
           <div>
             <h3 className="font-semibold text-foreground">Status:</h3>
-            <p className="text-muted-foreground">{document.status}</p>
+            <p className="text-muted-foreground">
+              {document.status === "Published" ? "Publicado" : document.status === "Draft" ? "Rascunho" : document.status}
+            </p>
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">Created At:</h3>
-            <p className="text-muted-foreground">{format(new Date(document.createdAt), "MMMM dd, yyyy 'at' HH:mm")}</p>
+            <h3 className="font-semibold text-foreground">Criado em:</h3>
+            <p className="text-muted-foreground">{format(new Date(document.createdAt), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}</p>
           </div>
           <div>
-            <h3 className="font-semibold text-foreground">Last Updated:</h3>
-            <p className="text-muted-foreground">{format(new Date(document.updatedAt), "MMMM dd, yyyy 'at' HH:mm")}</p>
+            <h3 className="font-semibold text-foreground">Última Atualização:</h3>
+            <p className="text-muted-foreground">{format(new Date(document.updatedAt), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}</p>
           </div>
           {document.sharedWith && document.sharedWith.length > 0 && (
             <div>
-              <h3 className="font-semibold text-foreground">Shared With:</h3>
+              <h3 className="font-semibold text-foreground">Compartilhado Com:</h3>
               <ul className="list-disc list-inside text-muted-foreground">
                 {document.sharedWith.map(user => (
-                  <li key={user.email}>{user.email} ({user.permission})</li>
+                  <li key={user.email}>{user.email} ({getPermissionLabel(user.permission)})</li>
                 ))}
               </ul>
             </div>
           )}
           {!document.googleDocsId && (
              <p className="text-sm text-muted-foreground p-4 bg-muted rounded-md">
-              This document is managed internally. No Google Docs link available yet.
+              Este documento é gerenciado internamente. Nenhum link do Google Docs disponível ainda.
             </p>
           )}
         </CardContent>
         <CardFooter className="flex justify-end gap-2 pt-6">
           {/* Share Button could be re-enabled here if ShareDocumentDialog is adapted for this page */}
-          {/* <Button variant="outline"><Share2 className="mr-2 h-4 w-4" /> Share</Button> */}
+          {/* <Button variant="outline"><Share2 className="mr-2 h-4 w-4" /> Compartilhar</Button> */}
           <Link href={`/documents/${document.id}/edit`} passHref>
-             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground"><Edit3 className="mr-2 h-4 w-4" /> Edit Details</Button>
+             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground"><Edit3 className="mr-2 h-4 w-4" /> Editar Detalhes</Button>
           </Link>
         </CardFooter>
       </Card>

@@ -25,10 +25,10 @@ import {
 import { cn } from "@/lib/utils";
 
 const menuItems = [
-  { href: "/", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/documents/create", label: "Create Document", icon: FilePlus2 },
-  // { href: "/documents", label: "All Documents", icon: FileText }, // Future page
-  // { href: "/sharing", label: "Sharing", icon: Users }, // Future page
+  { href: "/", label: "Painel", icon: LayoutDashboard },
+  { href: "/documents/create", label: "Criar Documento", icon: FilePlus2 },
+  // { href: "/documents", label: "Todos os Documentos", icon: FileText }, // Future page
+  // { href: "/sharing", label: "Compartilhamento", icon: Users }, // Future page
 ];
 
 export function AppSidebar() {
@@ -67,16 +67,16 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
              <Link href="/settings" passHref legacyBehavior>
-              <SidebarMenuButton tooltip="Settings" className="justify-start">
+              <SidebarMenuButton tooltip="Configurações" className="justify-start">
                 <Settings className="h-5 w-5" />
-                <span>Settings</span>
+                <span>Configurações</span>
               </SidebarMenuButton>
             </Link>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Help" className="justify-start">
+            <SidebarMenuButton tooltip="Ajuda" className="justify-start">
               <LifeBuoy className="h-5 w-5" />
-              <span>Help</span>
+              <span>Ajuda</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

@@ -27,17 +27,17 @@ export default async function DocumentEditPage({ params }: DocumentEditPageProps
       <div className="mb-6">
         <Link href={`/documents/${document.id}`} passHref>
           <Button variant="outline" className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Document
+            <ArrowLeft className="mr-2 h-4 w-4" /> Voltar para Documento
           </Button>
         </Link>
       </div>
 
       <Card className="w-full max-w-2xl mx-auto shadow-lg">
         <CardHeader>
-          <CardTitle className="text-2xl">Edit Document: {document.name}</CardTitle>
+          <CardTitle className="text-2xl">Editar Documento: {document.name}</CardTitle>
           <CardDescription>
-            Modify the details for this document.
-            Actual document content editing happens in Google Docs (if linked).
+            Modifique os detalhes deste documento.
+            A edição do conteúdo do documento real acontece no Google Docs (se vinculado).
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -48,11 +48,11 @@ export default async function DocumentEditPage({ params }: DocumentEditPageProps
             This form would then call an `updateDocumentAction`.
           */}
           <p className="text-muted-foreground">
-            Editing functionality for document metadata (name, type, internal status, etc.) would be implemented here.
-            The current "Create Document" form could be adapted for editing.
+            A funcionalidade de edição para metadados do documento (nome, tipo, status interno, etc.) seria implementada aqui.
+            O formulário atual de "Criar Documento" poderia ser adaptado para edição.
           </p>
           <p className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-md text-sm text-blue-700">
-            <strong>Note:</strong> For now, this is a placeholder. Full editing capabilities require adapting the creation form and implementing an update server action.
+            <strong>Nota:</strong> Por enquanto, isto é um placeholder. Funcionalidades completas de edição requerem a adaptação do formulário de criação e a implementação de uma action de atualização.
           </p>
         </CardContent>
       </Card>
