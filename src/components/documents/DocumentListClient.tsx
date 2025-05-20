@@ -106,7 +106,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   };
   
   const handleClearFilters = (e: React.MouseEvent<HTMLButtonElement>) => {
-    e.stopPropagation(); // Prevent accordion from toggling when clear button is clicked
+    // e.stopPropagation(); // No longer needed here as button is not inside trigger
     setFilterName("");
     setFilterType("all");
     setFilterStatus("all");
@@ -145,19 +145,20 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     <>
       <Accordion type="single" collapsible className="mb-6 bg-card border rounded-lg shadow-md" defaultValue="item-1">
         <AccordionItem value="item-1" className="border-b-0">
-          <AccordionTrigger className="p-4 hover:no-underline">
-            <div className="flex justify-between items-center w-full">
+          <div className="flex items-center justify-between p-4"> {/* Custom header for the accordion item */}
+            <AccordionTrigger className="p-0 hover:no-underline flex-grow text-left"> {/* Trigger contains only non-button elements */}
               <div className="flex items-center gap-2">
                 <Filter className="h-5 w-5" />
                 <h3 className="text-lg font-semibold text-foreground">Filtros</h3>
               </div>
-              <Button variant="outline" onClick={handleClearFilters} size="sm">
-                <X className="mr-2 h-4 w-4" />
-                Limpar Filtros
-              </Button>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="p-4 pt-0"> {/* Adjusted padding here */}
+              {/* Chevron is added automatically by AccordionTrigger */}
+            </AccordionTrigger>
+            <Button variant="outline" onClick={handleClearFilters} size="sm" className="ml-4 flex-shrink-0"> {/* Sibling to AccordionTrigger */}
+              <X className="mr-2 h-4 w-4" />
+              Limpar Filtros
+            </Button>
+          </div>
+          <AccordionContent className="p-4 pt-0">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end pt-2">
               <div>
                 <Label htmlFor="filterName" className="text-sm font-medium text-muted-foreground db-block mb-1">Nome do Documento</Label>
@@ -367,6 +368,5 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     </>
   );
 }
-
 
     
