@@ -10,6 +10,7 @@ export const mockDocuments: DocumentMetadata[] = [
     number: "OF-2024-001",
     createdAt: new Date(2024, 0, 15).toISOString(),
     updatedAt: new Date(2024, 0, 16).toISOString(),
+    sourceType: "googleDocs",
     googleDocsId: "mockGoogleDocId1",
     sharedWith: [{ email: "colleague1@example.com", permission: "edit" }],
     status: "Published",
@@ -21,6 +22,7 @@ export const mockDocuments: DocumentMetadata[] = [
     number: "MEM-2024-001",
     createdAt: new Date(2024, 1, 10).toISOString(),
     updatedAt: new Date(2024, 1, 10).toISOString(),
+    sourceType: "internal",
     status: "Draft",
   },
   {
@@ -30,6 +32,7 @@ export const mockDocuments: DocumentMetadata[] = [
     number: "PORT-2024-005",
     createdAt: new Date(2024, 2, 5).toISOString(),
     updatedAt: new Date(2024, 2, 5).toISOString(),
+    sourceType: "googleDocs",
     googleDocsId: "mockGoogleDocId3",
     sharedWith: [
       { email: "manager@example.com", permission: "view" },
@@ -44,6 +47,8 @@ export const mockDocuments: DocumentMetadata[] = [
     number: "ATA-2024-002",
     createdAt: new Date(2024, 3, 20).toISOString(),
     updatedAt: new Date(2024, 3, 22).toISOString(),
+    sourceType: "local",
+    localFileIdentifier: "C:\\Reuniões\\Diretoria\\ATA-2024-002.pdf",
     status: "Published",
   },
   {
@@ -53,6 +58,7 @@ export const mockDocuments: DocumentMetadata[] = [
     number: "DEC-2024-010",
     createdAt: new Date(2024, 4, 1).toISOString(),
     updatedAt: new Date(2024, 4, 1).toISOString(),
+    sourceType: "internal",
     status: "Published",
   },
 ];
@@ -74,7 +80,7 @@ export const updateDocumentSharing = (docId: string, sharedWith: DocumentMetadat
 
 export const updateDocumentMetadata = (
   docId: string,
-  updates: Partial<Pick<DocumentMetadata, 'name' | 'type'>> // Can be extended for other fields
+  updates: Partial<DocumentMetadata> 
 ): boolean => {
   const docIndex = userDocuments.findIndex(d => d.id === docId);
   if (docIndex !== -1) {
@@ -83,6 +89,15 @@ export const updateDocumentMetadata = (
       ...updates,
       updatedAt: new Date().toISOString(),
     };
+    // Ensure consistency based on sourceType
+    if (updates.sourceType === "googleDocs") {
+      userDocuments[docIndex].localFileIdentifier = undefined;
+    } else if (updates.sourceType === "local") {
+      userDocuments[docIndex].googleDocsId = undefined;
+    } else if (updates.sourceType === "internal") {
+      userDocuments[docIndex].googleDocsId = undefined;
+      userDocuments[docIndex].localFileIdentifier = undefined;
+    }
     return true;
   }
   return false; // Document not found

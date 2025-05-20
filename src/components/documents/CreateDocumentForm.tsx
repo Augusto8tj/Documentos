@@ -22,8 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { DocumentType } from "@/lib/types";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { DocumentType, type DocumentSourceType } from "@/lib/types";
 import { createDocumentAction } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -38,7 +38,18 @@ const formSchema = z.object({
   type: z.nativeEnum(DocumentType, {
     errorMap: () => ({ message: "Por favor, selecione um tipo de documento." }),
   }),
-  // content: z.string().optional(), // For initial notes or brief content
+  sourceType: z.enum(["internal", "googleDocs", "local"], {
+    errorMap: () => ({ message: "Por favor, selecione a fonte do documento." }),
+  }).default("internal"),
+  localFileIdentifier: z.string().optional(),
+}).refine(data => {
+  if (data.sourceType === "local" && (!data.localFileIdentifier || data.localFileIdentifier.trim() === "")) {
+    return false;
+  }
+  return true;
+}, {
+  message: "O identificador do arquivo local é obrigatório se a fonte for 'Arquivo Local'.",
+  path: ["localFileIdentifier"],
 });
 
 export function CreateDocumentForm() {
@@ -50,16 +61,22 @@ export function CreateDocumentForm() {
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "",
-      // type: undefined, // Let placeholder handle initial state
+      sourceType: "internal",
+      localFileIdentifier: "",
     },
   });
+
+  const currentSourceType = form.watch("sourceType");
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append("name", values.name);
     formData.append("type", values.type);
-    // if (values.content) formData.append("content", values.content);
+    formData.append("sourceType", values.sourceType);
+    if (values.sourceType === "local" && values.localFileIdentifier) {
+      formData.append("localFileIdentifier", values.localFileIdentifier);
+    }
 
     const result = await createDocumentAction(formData);
 
@@ -68,13 +85,13 @@ export function CreateDocumentForm() {
     if (result.success) {
       toast({
         title: "Documento Criado",
-        description: `"${values.name}" foi criado com sucesso. A numeração e o link do Google Docs serão simulados.`,
+        description: `"${values.name}" foi criado com sucesso.`,
       });
-      router.push("/"); // Redirect to dashboard
+      router.push("/"); 
     } else {
       toast({
         title: "Erro ao Criar Documento",
-        description: result.error ? JSON.stringify(result.error) : "Ocorreu um erro desconhecido.",
+        description: result.error ? result.error : "Ocorreu um erro desconhecido.",
         variant: "destructive",
       });
     }
@@ -85,7 +102,7 @@ export function CreateDocumentForm() {
       <CardHeader>
         <CardTitle className="text-2xl">Criar Novo Documento</CardTitle>
         <CardDescription>
-          Preencha os detalhes abaixo. A numeração automática será aplicada e o documento será (simulado) criado no Google Docs.
+          Preencha os detalhes abaixo. A numeração automática será aplicada.
         </CardDescription>
       </CardHeader>
       <Form {...form}>
@@ -100,9 +117,6 @@ export function CreateDocumentForm() {
                   <FormControl>
                     <Input placeholder="e.g., Solicitação de Férias" {...field} />
                   </FormControl>
-                  <FormDescription>
-                    Insira um nome descritivo para o seu documento.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -127,36 +141,70 @@ export function CreateDocumentForm() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormDescription>
-                    Escolha a categoria para este documento.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            {/* 
             <FormField
               control={form.control}
-              name="content"
+              name="sourceType"
               render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Notas Iniciais (Opcional)</FormLabel>
+                <FormItem className="space-y-3">
+                  <FormLabel>Fonte do Documento</FormLabel>
                   <FormControl>
-                    <Textarea
-                      placeholder="Adicione notas iniciais ou um breve resumo para o documento..."
-                      className="resize-none"
-                      {...field}
-                      rows={5}
-                    />
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      defaultValue={field.value}
+                      className="flex flex-col space-y-1 md:flex-row md:space-y-0 md:space-x-4"
+                    >
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="internal" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Interno (sem link/arquivo)
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="googleDocs" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Google Docs (será simulado)
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="local" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Arquivo Local (referência)
+                        </FormLabel>
+                      </FormItem>
+                    </RadioGroup>
                   </FormControl>
-                   <FormDescription>
-                    Este conteúdo é para referência interna ou pode ser usado como ponto de partida no Google Docs.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            */}
+            {currentSourceType === "local" && (
+              <FormField
+                control={form.control}
+                name="localFileIdentifier"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Identificador do Arquivo Local</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., C:\\Documentos\\ProjetoX.docx ou Servidor\\Oficios\\2024\\..." {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Insira o caminho ou referência para o arquivo local.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
           </CardContent>
           <CardFooter className="flex justify-end pt-6">
             <Button type="submit" disabled={isSubmitting} className="bg-primary hover:bg-primary/90 text-primary-foreground">

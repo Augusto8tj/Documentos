@@ -2,25 +2,36 @@
 "use server";
 
 import { z } from "zod";
-import { DocumentType, type DocumentMetadata } from "./types";
+import { DocumentType, type DocumentMetadata, type DocumentSourceType } from "./types";
 import { 
   addDocument as dbAddDocument, 
   updateDocumentSharing as dbUpdateDocumentSharing, 
-  updateDocumentMetadata as dbUpdateDocumentMetadata, // Import new update function
+  updateDocumentMetadata as dbUpdateDocumentMetadata,
   userDocuments 
 } from "@/data/mock-data";
 import { revalidatePath } from "next/cache";
 
 const CreateDocumentSchema = z.object({
-  name: z.string().min(3, "O nome do documento deve ter pelo menos 3 caracteres"),
+  name: z.string().min(3, "O nome do documento deve ter pelo menos 3 caracteres."),
   type: z.nativeEnum(DocumentType),
-  // content: z.string().optional(), // If initial content is captured
+  sourceType: z.enum(["internal", "googleDocs", "local"]),
+  localFileIdentifier: z.string().optional(),
+}).refine(data => {
+  if (data.sourceType === "local" && !data.localFileIdentifier) {
+    return false;
+  }
+  return true;
+}, {
+  message: "O identificador do arquivo local é obrigatório se a fonte for 'Arquivo Local'.",
+  path: ["localFileIdentifier"],
 });
 
 export async function createDocumentAction(formData: FormData) {
   const validatedFields = CreateDocumentSchema.safeParse({
     name: formData.get("name"),
     type: formData.get("type"),
+    sourceType: formData.get("sourceType"),
+    localFileIdentifier: formData.get("localFileIdentifier"),
   });
 
   if (!validatedFields.success) {
@@ -29,9 +40,8 @@ export async function createDocumentAction(formData: FormData) {
     };
   }
 
-  const { name, type } = validatedFields.data;
+  const { name, type, sourceType, localFileIdentifier } = validatedFields.data;
 
-  // Simulate automatic numbering
   const typePrefix = type.substring(0, 3).toUpperCase();
   const countForType = userDocuments.filter(doc => doc.type === type).length + 1;
   const paddedCount = countForType.toString().padStart(3, '0');
@@ -45,17 +55,20 @@ export async function createDocumentAction(formData: FormData) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     status: "Draft",
+    sourceType: sourceType as DocumentSourceType,
     sharedWith: [],
   };
 
-  // Simulate Google Docs creation - in a real app, this would call Google Docs API
-  // For now, we just add it to our mock data
+  if (sourceType === "googleDocs") {
+    newDocument.googleDocsId = `simulatedGDocId-${crypto.randomUUID().substring(0,8)}`;
+  } else if (sourceType === "local" && localFileIdentifier) {
+    newDocument.localFileIdentifier = localFileIdentifier;
+  }
+
   dbAddDocument(newDocument);
   
-  // console.log("Simulated Google Doc creation for:", newDocument.name);
-
-  revalidatePath("/"); // Revalidate dashboard
-  revalidatePath("/documents/create"); // Potentially clear form or redirect
+  revalidatePath("/"); 
+  revalidatePath("/documents/create"); 
 
   return { success: true, documentId: newDocument.id };
 }
@@ -66,42 +79,56 @@ const ShareDocumentSchema = z.object({
   sharedWith: z.array(z.object({
     email: z.string().email("Formato de e-mail inválido."),
     permission: z.enum(["view", "edit"]),
-  })).optional(), // Made optional to allow empty array for removing all users
+  })).optional(),
 });
 
 export async function shareDocumentAction(documentId: string, sharedWithInput: DocumentMetadata['sharedWith']) {
   const validatedFields = ShareDocumentSchema.safeParse({
     documentId,
-    sharedWith: sharedWithInput || [], // Ensure sharedWith is an array
+    sharedWith: sharedWithInput || [],
   });
 
   if (!validatedFields.success) {
     return {
-      // error: "Dados de compartilhamento inválidos. " + JSON.stringify(validatedFields.error.flatten().fieldErrors),
       error: "Dados de compartilhamento inválidos. Verifique os e-mails e permissões.",
     };
   }
   
   const { sharedWith } = validatedFields.data;
 
-  // Simulate updating Google Docs sharing permissions
-  // For now, update mock data
   dbUpdateDocumentSharing(validatedFields.data.documentId, sharedWith);
-  // console.log(`Simulated sharing update for doc ${documentId}:`, sharedWith);
 
-  revalidatePath("/"); // Revalidate dashboard to reflect sharing changes if displayed
-  revalidatePath(`/documents/${documentId}`); // Revalidate document detail page
+  revalidatePath("/");
+  revalidatePath(`/documents/${documentId}`); 
 
   return { success: true };
 }
 
-// Schema for editing document metadata
 const EditDocumentFormSchema = z.object({
   id: z.string().min(1, "ID do documento é obrigatório."),
   name: z.string().min(3, "O nome do documento deve ter pelo menos 3 caracteres."),
   type: z.nativeEnum(DocumentType, {
     errorMap: () => ({ message: "Por favor, selecione um tipo de documento válido." }),
   }),
+  sourceType: z.enum(["internal", "googleDocs", "local"]),
+  googleDocsId: z.string().optional(),
+  localFileIdentifier: z.string().optional(),
+}).refine(data => {
+  if (data.sourceType === "local" && (!data.localFileIdentifier || data.localFileIdentifier.trim() === "")) {
+    return false;
+  }
+  return true;
+}, {
+  message: "O identificador do arquivo local é obrigatório se a fonte for 'Arquivo Local'.",
+  path: ["localFileIdentifier"],
+}).refine(data => {
+  if (data.sourceType === "googleDocs" && (!data.googleDocsId || data.googleDocsId.trim() === "")) {
+    return false;
+  }
+  return true;
+}, {
+  message: "O ID do Google Docs é obrigatório se a fonte for 'Google Docs'.",
+  path: ["googleDocsId"],
 });
 
 export async function updateDocumentAction(formData: FormData) {
@@ -109,6 +136,9 @@ export async function updateDocumentAction(formData: FormData) {
     id: formData.get("id"),
     name: formData.get("name"),
     type: formData.get("type"),
+    sourceType: formData.get("sourceType"),
+    googleDocsId: formData.get("googleDocsId"),
+    localFileIdentifier: formData.get("localFileIdentifier"),
   });
 
   if (!validatedFields.success) {
@@ -117,9 +147,22 @@ export async function updateDocumentAction(formData: FormData) {
     };
   }
 
-  const { id, name, type } = validatedFields.data;
+  const { id, name, type, sourceType, googleDocsId, localFileIdentifier } = validatedFields.data;
 
-  const success = dbUpdateDocumentMetadata(id, { name, type });
+  const updates: Partial<DocumentMetadata> = { name, type, sourceType: sourceType as DocumentSourceType };
+
+  if (sourceType === "googleDocs") {
+    updates.googleDocsId = googleDocsId;
+    updates.localFileIdentifier = undefined; // Clear local identifier
+  } else if (sourceType === "local") {
+    updates.localFileIdentifier = localFileIdentifier;
+    updates.googleDocsId = undefined; // Clear Google Docs ID
+  } else { // internal
+    updates.googleDocsId = undefined;
+    updates.localFileIdentifier = undefined;
+  }
+
+  const success = dbUpdateDocumentMetadata(id, updates);
 
   if (!success) {
     return {
@@ -127,9 +170,9 @@ export async function updateDocumentAction(formData: FormData) {
     };
   }
 
-  revalidatePath("/"); // Revalidate dashboard
-  revalidatePath(`/documents/${id}`); // Revalidate document detail page
-  revalidatePath(`/documents/${id}/edit`); // Revalidate edit page itself
+  revalidatePath("/"); 
+  revalidatePath(`/documents/${id}`);
+  revalidatePath(`/documents/${id}/edit`);
 
   return { success: true, documentId: id };
 }

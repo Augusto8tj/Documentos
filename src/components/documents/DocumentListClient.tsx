@@ -28,8 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users, CalendarIcon, Filter } from "lucide-react";
-import type { DocumentMetadata } from "@/lib/types";
+import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users, CalendarIcon, Filter, Folder, FileArchive } from "lucide-react";
+import type { DocumentMetadata, DocumentSourceType } from "@/lib/types";
 import { DocumentType } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
 import { 
@@ -51,6 +51,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { ExternalLink } from "lucide-react"; // Added for Google Docs icon
 
 interface DocumentListClientProps {
   documents: DocumentMetadata[];
@@ -78,7 +79,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const [filterUpdatedAtPeriod, setFilterUpdatedAtPeriod] = useState<DateFilterPeriod>("all");
   const [filterUpdatedAtValue, setFilterUpdatedAtValue] = useState<Date | undefined>(undefined);
 
-  const [filterHasGoogleDocsLink, setFilterHasGoogleDocsLink] = useState<"all" | "yes" | "no">("all");
+  const [filterSourceType, setFilterSourceType] = useState<DocumentSourceType | "all">("all");
   const [filterSharedEmail, setFilterSharedEmail] = useState("");
 
   useEffect(() => {
@@ -94,6 +95,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                               doc.number.toLowerCase().includes(filterSearchTerm.toLowerCase());
       const typeMatch = filterType === "all" || doc.type === filterType;
       const statusMatch = filterStatus === "all" || doc.status === filterStatus;
+      const sourceTypeMatch = filterSourceType === "all" || doc.sourceType === filterSourceType;
       
       let createdAtMatch = true;
       if (filterCreatedAtPeriod !== 'all' && filterCreatedAtValue) {
@@ -123,13 +125,10 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
         }
       }
 
-      const googleDocsMatch = filterHasGoogleDocsLink === "all" ||
-                             (filterHasGoogleDocsLink === "yes" && !!doc.googleDocsId) ||
-                             (filterHasGoogleDocsLink === "no" && !doc.googleDocsId);
       const sharedEmailMatch = filterSharedEmail === "" ||
                                (doc.sharedWith && doc.sharedWith.some(user => user.email.toLowerCase().includes(filterSharedEmail.toLowerCase())));
       
-      return searchTermMatch && typeMatch && statusMatch && createdAtMatch && updatedAtMatch && googleDocsMatch && sharedEmailMatch;
+      return searchTermMatch && typeMatch && statusMatch && createdAtMatch && updatedAtMatch && sourceTypeMatch && sharedEmailMatch;
     });
     
     setProcessedDocs(filtered);
@@ -137,7 +136,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   }, [initialDocuments, filterSearchTerm, filterType, filterStatus, 
       filterCreatedAtPeriod, filterCreatedAtValue, 
       filterUpdatedAtPeriod, filterUpdatedAtValue,
-      filterHasGoogleDocsLink, filterSharedEmail]);
+      filterSourceType, filterSharedEmail]);
 
   const handleShare = (doc: DocumentMetadata) => {
     setSelectedDocumentForShare(doc);
@@ -146,8 +145,6 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
   const handleDelete = (docId: string) => {
     console.log("Excluir documento:", docId);
-    // Here you would typically call a server action to delete the document
-    // For now, just remove from client-side state for demo
     setProcessedDocs(prevDocs => prevDocs ? prevDocs.filter(doc => doc.id !== docId) : null);
   };
   
@@ -159,18 +156,18 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     setFilterCreatedAtValue(undefined);
     setFilterUpdatedAtPeriod("all");
     setFilterUpdatedAtValue(undefined);
-    setFilterHasGoogleDocsLink("all");
+    setFilterSourceType("all");
     setFilterSharedEmail("");
   };
 
   const handleCreatedAtPeriodChange = (newPeriod: DateFilterPeriod) => {
     setFilterCreatedAtPeriod(newPeriod);
-    setFilterCreatedAtValue(undefined); // Reset date value when period changes
+    setFilterCreatedAtValue(undefined); 
   };
 
   const handleUpdatedAtPeriodChange = (newPeriod: DateFilterPeriod) => {
     setFilterUpdatedAtPeriod(newPeriod);
-    setFilterUpdatedAtValue(undefined); // Reset date value when period changes
+    setFilterUpdatedAtValue(undefined); 
   };
   
   const formatFilterDateButtonText = (period: DateFilterPeriod, value: Date | undefined): string => {
@@ -195,24 +192,19 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
 
    if (processedDocs === null && initialDocuments.length > 0) {
-     // Show a more structured skeleton while initial processing/filtering happens
      return (
       <div className="rounded-lg border shadow-sm bg-card p-4">
         <div className="animate-pulse">
-          {/* Skeleton for filter section header */}
           <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
-          {/* Skeleton for filter controls */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6 p-4 items-end">
-            {[...Array(7)].map((_, i) => ( // Assuming roughly 7 filter controls
+            {[...Array(8)].map((_, i) => ( 
               <div key={i} className="space-y-1">
-                <div className="h-4 bg-muted rounded w-1/3"></div> {/* Label skeleton */}
-                <div className="h-10 bg-muted rounded"></div> {/* Input/Select skeleton */}
+                <div className="h-4 bg-muted rounded w-1/3"></div> 
+                <div className="h-10 bg-muted rounded"></div> 
               </div>
             ))}
           </div>
-          {/* Skeleton for table header */}
           <div className="h-10 bg-muted rounded w-full mb-2"></div>
-          {/* Skeleton for table rows */}
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-12 bg-muted rounded w-full mb-1"></div>
           ))}
@@ -222,6 +214,19 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   }
   
   const currentDocuments = processedDocs || [];
+
+  const getSourceTypeIcon = (sourceType: DocumentSourceType) => {
+    switch (sourceType) {
+      case "googleDocs":
+        return <ExternalLink className="h-4 w-4 text-blue-500" />;
+      case "local":
+        return <Folder className="h-4 w-4 text-orange-500" />;
+      case "internal":
+        return <FileArchive className="h-4 w-4 text-gray-500" />;
+      default:
+        return <FileText className="h-4 w-4 text-gray-400" />;
+    }
+  };
 
   return (
     <>
@@ -279,16 +284,29 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label htmlFor="filterSourceType" className="text-sm font-medium text-muted-foreground db-block mb-1">Fonte do Documento</Label>
+                <Select value={filterSourceType} onValueChange={(value) => setFilterSourceType(value as DocumentSourceType | "all")}>
+                  <SelectTrigger id="filterSourceType" className="mt-1">
+                    <SelectValue placeholder="Todas as fontes" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todas as fontes</SelectItem>
+                    <SelectItem value="internal">Interno</SelectItem>
+                    <SelectItem value="googleDocs">Google Docs</SelectItem>
+                    <SelectItem value="local">Arquivo Local</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               
-              {/* Created At Filter */}
               <div className="space-y-1">
                 <Label htmlFor="filterCreatedAtPeriodSelect" className="text-sm font-medium text-muted-foreground">Data de Criação</Label>
                 <div className="flex gap-2 mt-1">
                   <Select 
                     value={filterCreatedAtPeriod} 
                     onValueChange={(value) => handleCreatedAtPeriodChange(value as DateFilterPeriod)}
-                    name="filterCreatedAtPeriodSelect" // Added name for accessibility/testing
-                    aria-label="Período do filtro de data de criação" // Added aria-label
+                    name="filterCreatedAtPeriodSelect" 
+                    aria-label="Período do filtro de data de criação" 
                   >
                     <SelectTrigger className="w-[120px]">
                       <SelectValue placeholder="Período" />
@@ -322,22 +340,21 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                         onSelect={setFilterCreatedAtValue}
                         initialFocus
                         locale={ptBR}
-                        disabled={filterCreatedAtPeriod === 'all'} // Disable if "all" is selected
+                        disabled={filterCreatedAtPeriod === 'all'}
                       />
                     </PopoverContent>
                   </Popover>
                 </div>
               </div>
 
-              {/* Updated At Filter */}
               <div className="space-y-1">
                 <Label htmlFor="filterUpdatedAtPeriodSelect" className="text-sm font-medium text-muted-foreground">Data Últ. Modificação</Label>
                  <div className="flex gap-2 mt-1">
                   <Select 
                     value={filterUpdatedAtPeriod} 
                     onValueChange={(value) => handleUpdatedAtPeriodChange(value as DateFilterPeriod)}
-                    name="filterUpdatedAtPeriodSelect" // Added name
-                    aria-label="Período do filtro de data de última modificação" // Added aria-label
+                    name="filterUpdatedAtPeriodSelect" 
+                    aria-label="Período do filtro de data de última modificação" 
                   >
                     <SelectTrigger className="w-[120px]">
                       <SelectValue placeholder="Período" />
@@ -371,27 +388,11 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                         onSelect={setFilterUpdatedAtValue}
                         initialFocus
                         locale={ptBR}
-                        disabled={filterUpdatedAtPeriod === 'all'} // Disable if "all" is selected
+                        disabled={filterUpdatedAtPeriod === 'all'} 
                       />
                     </PopoverContent>
                   </Popover>
                 </div>
-              </div>
-              <div>
-                <Label htmlFor="filterHasGoogleDocsLink" className="text-sm font-medium text-muted-foreground db-block mb-1">
-                  <Link2 className="inline mr-1 h-4 w-4" />
-                  Link Google Docs?
-                </Label>
-                <Select value={filterHasGoogleDocsLink} onValueChange={(value) => setFilterHasGoogleDocsLink(value as "all" | "yes" | "no")}>
-                  <SelectTrigger id="filterHasGoogleDocsLink" className="mt-1">
-                    <SelectValue placeholder="Todos" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Todos</SelectItem>
-                    <SelectItem value="yes">Sim</SelectItem>
-                    <SelectItem value="no">Não</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div>
                 <Label htmlFor="filterSharedEmail" className="text-sm font-medium text-muted-foreground db-block mb-1">
@@ -415,6 +416,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px] p-2 text-center">Fonte</TableHead>
               <TableHead className="w-[250px]">Nome</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Número</TableHead>
@@ -426,13 +428,25 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
           <TableBody>
             {currentDocuments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
                   Nenhum documento encontrado com os filtros aplicados.
                 </TableCell>
               </TableRow>
             ) : (
               currentDocuments.map((doc) => (
                 <TableRow key={doc.id}>
+                  <TableCell className="p-2 text-center">
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span>{getSourceTypeIcon(doc.sourceType)}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>{doc.sourceType === "googleDocs" ? "Google Docs" : doc.sourceType === "local" ? "Arquivo Local" : "Interno"}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </TableCell>
                   <TableCell className="font-medium text-foreground">
                     <Link href={`/documents/${doc.id}`} className="hover:underline flex items-center gap-2">
                        <FileText className="h-4 w-4 text-primary" /> {doc.name}
@@ -458,10 +472,22 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem asChild>
-                           <Link href={`/documents/${doc.id}/edit`} className="flex items-center cursor-pointer">
-                            <Eye className="mr-2 h-4 w-4" /> Visualizar/Editar
+                           <Link href={`/documents/${doc.id}`} className="flex items-center cursor-pointer">
+                            <Eye className="mr-2 h-4 w-4" /> Visualizar
                           </Link>
                         </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                           <Link href={`/documents/${doc.id}/edit`} className="flex items-center cursor-pointer">
+                            <Edit3 className="mr-2 h-4 w-4" /> Editar
+                          </Link>
+                        </DropdownMenuItem>
+                         {doc.sourceType === "googleDocs" && doc.googleDocsId && (
+                          <DropdownMenuItem asChild>
+                            <a href={`https://docs.google.com/document/d/${doc.googleDocsId}/edit`} target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer">
+                              <ExternalLink className="mr-2 h-4 w-4" /> Abrir no Google Docs
+                            </a>
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => handleShare(doc)} className="flex items-center cursor-pointer">
                           <Share2 className="mr-2 h-4 w-4" /> Compartilhar
                         </DropdownMenuItem>

@@ -23,7 +23,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { DocumentType, type DocumentMetadata } from "@/lib/types";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { DocumentType, type DocumentMetadata, type DocumentSourceType } from "@/lib/types";
 import { updateDocumentAction } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -37,7 +38,29 @@ const formSchema = z.object({
   type: z.nativeEnum(DocumentType, {
     errorMap: () => ({ message: "Por favor, selecione um tipo de documento." }),
   }),
+  sourceType: z.enum(["internal", "googleDocs", "local"],{
+    errorMap: () => ({ message: "Por favor, selecione a fonte do documento." }),
+  }),
+  googleDocsId: z.string().optional(),
+  localFileIdentifier: z.string().optional(),
+}).refine(data => {
+  if (data.sourceType === "local" && (!data.localFileIdentifier || data.localFileIdentifier.trim() === "")) {
+    return false;
+  }
+  return true;
+}, {
+  message: "O identificador do arquivo local é obrigatório se a fonte for 'Arquivo Local'.",
+  path: ["localFileIdentifier"],
+}).refine(data => {
+  if (data.sourceType === "googleDocs" && (!data.googleDocsId || data.googleDocsId.trim() === "")) {
+    return false;
+  }
+  return true;
+}, {
+  message: "O ID do Google Docs é obrigatório se a fonte for 'Google Docs'.",
+  path: ["googleDocsId"],
 });
+
 
 interface EditDocumentFormProps {
   existingDocument: DocumentMetadata;
@@ -53,8 +76,13 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
     defaultValues: {
       name: existingDocument.name,
       type: existingDocument.type,
+      sourceType: existingDocument.sourceType,
+      googleDocsId: existingDocument.googleDocsId || "",
+      localFileIdentifier: existingDocument.localFileIdentifier || "",
     },
   });
+
+  const currentSourceType = form.watch("sourceType");
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
@@ -62,6 +90,14 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
     formData.append("id", existingDocument.id);
     formData.append("name", values.name);
     formData.append("type", values.type);
+    formData.append("sourceType", values.sourceType);
+
+    if (values.sourceType === "googleDocs" && values.googleDocsId) {
+      formData.append("googleDocsId", values.googleDocsId);
+    }
+    if (values.sourceType === "local" && values.localFileIdentifier) {
+      formData.append("localFileIdentifier", values.localFileIdentifier);
+    }
 
     const result = await updateDocumentAction(formData);
     setIsSubmitting(false);
@@ -71,12 +107,12 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
         title: "Documento Atualizado",
         description: `"${values.name}" foi atualizado com sucesso.`,
       });
-      router.push(`/documents/${existingDocument.id}`); // Redirect to document detail page
-      router.refresh(); // Ensure the page data is fresh
+      router.push(`/documents/${existingDocument.id}`); 
+      router.refresh(); 
     } else {
       toast({
         title: "Erro ao Atualizar Documento",
-        description: result.error ? JSON.stringify(result.error) : "Ocorreu um erro desconhecido.",
+        description: result.error ? result.error : "Ocorreu um erro desconhecido.",
         variant: "destructive",
       });
     }
@@ -102,9 +138,6 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                   <FormControl>
                     <Input placeholder="e.g., Solicitação de Férias" {...field} />
                   </FormControl>
-                  <FormDescription>
-                    Insira um nome descritivo para o seu documento.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -129,13 +162,99 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormDescription>
-                    Escolha a categoria para este documento.
-                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            <FormField
+              control={form.control}
+              name="sourceType"
+              render={({ field }) => (
+                <FormItem className="space-y-3">
+                  <FormLabel>Fonte do Documento</FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        // Clear other fields when source type changes
+                        if (value === "internal") {
+                          form.setValue("googleDocsId", "");
+                          form.setValue("localFileIdentifier", "");
+                        } else if (value === "googleDocs") {
+                          form.setValue("localFileIdentifier", "");
+                        } else if (value === "local") {
+                          form.setValue("googleDocsId", "");
+                        }
+                      }}
+                      defaultValue={field.value}
+                      className="flex flex-col space-y-1 md:flex-row md:space-y-0 md:space-x-4"
+                    >
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="internal" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Interno
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="googleDocs" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Google Docs
+                        </FormLabel>
+                      </FormItem>
+                      <FormItem className="flex items-center space-x-3 space-y-0">
+                        <FormControl>
+                          <RadioGroupItem value="local" />
+                        </FormControl>
+                        <FormLabel className="font-normal">
+                          Arquivo Local
+                        </FormLabel>
+                      </FormItem>
+                    </RadioGroup>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {currentSourceType === "googleDocs" && (
+              <FormField
+                control={form.control}
+                name="googleDocsId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>ID do Google Docs</FormLabel>
+                    <FormControl>
+                      <Input placeholder="Insira o ID do documento do Google Docs" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      O ID encontrado na URL do seu Google Doc.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {currentSourceType === "local" && (
+              <FormField
+                control={form.control}
+                name="localFileIdentifier"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Identificador do Arquivo Local</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., C:\\Documentos\\ProjetoX.docx" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                     Insira o caminho ou referência para o arquivo local.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
           </CardContent>
           <CardFooter className="flex justify-end pt-6">
             <Button type="submit" disabled={isSubmitting} className="bg-primary hover:bg-primary/90 text-primary-foreground">

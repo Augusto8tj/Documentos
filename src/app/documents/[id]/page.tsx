@@ -2,11 +2,12 @@
 import { getDocumentById } from "@/data/mock-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { ArrowLeft, ExternalLink, Share2, Edit3 } from "lucide-react";
+import { ArrowLeft, ExternalLink, Edit3, Folder, FileArchive } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import type { DocumentSourceType } from "@/lib/types";
 
 interface DocumentDetailPageProps {
   params: { id: string };
@@ -23,6 +24,19 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
     if (permission === "view") return "visualizar";
     if (permission === "edit") return "editar";
     return permission;
+  };
+
+  const getSourceTypeLabel = (sourceType: DocumentSourceType) => {
+    switch (sourceType) {
+      case "googleDocs":
+        return "Google Docs";
+      case "local":
+        return "Arquivo Local";
+      case "internal":
+        return "Interno (Gerenciado no Sistema)";
+      default:
+        return "Desconhecida";
+    }
   };
 
   return (
@@ -44,7 +58,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
                 {document.type} - Número: {document.number}
               </CardDescription>
             </div>
-            {document.googleDocsId && (
+            {document.sourceType === "googleDocs" && document.googleDocsId && (
               <Button variant="outline" asChild>
                 <a href={`https://docs.google.com/document/d/${document.googleDocsId}/edit`} target="_blank" rel="noopener noreferrer">
                   Abrir no Google Docs <ExternalLink className="ml-2 h-4 w-4" />
@@ -60,6 +74,32 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
               {document.status === "Published" ? "Publicado" : document.status === "Draft" ? "Rascunho" : document.status}
             </p>
           </div>
+           <div>
+            <h3 className="font-semibold text-foreground">Fonte do Documento:</h3>
+            <p className="text-muted-foreground flex items-center">
+              {document.sourceType === "local" ? <Folder className="mr-2 h-4 w-4 text-primary" /> : 
+               document.sourceType === "googleDocs" ? <ExternalLink className="mr-2 h-4 w-4 text-primary" /> :
+               <FileArchive className="mr-2 h-4 w-4 text-primary" />
+              }
+              {getSourceTypeLabel(document.sourceType)}
+            </p>
+          </div>
+          {document.sourceType === "local" && document.localFileIdentifier && (
+            <div>
+              <h3 className="font-semibold text-foreground">Referência do Arquivo Local:</h3>
+              <p className="text-muted-foreground break-all bg-muted p-2 rounded-md">{document.localFileIdentifier}</p>
+            </div>
+          )}
+          {document.sourceType === "internal" && (
+             <p className="text-sm text-muted-foreground p-4 bg-muted rounded-md">
+              Este documento é gerenciado internamente e não possui um link externo ou referência a arquivo local.
+            </p>
+          )}
+          {document.sourceType === "googleDocs" && !document.googleDocsId && (
+             <p className="text-sm text-muted-foreground p-4 bg-muted rounded-md">
+              Este documento está marcado como Google Docs, mas nenhum ID foi fornecido. Edite para adicionar.
+            </p>
+          )}
           <div>
             <h3 className="font-semibold text-foreground">Criado em:</h3>
             <p className="text-muted-foreground">{format(new Date(document.createdAt), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}</p>
@@ -78,15 +118,8 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
               </ul>
             </div>
           )}
-          {!document.googleDocsId && (
-             <p className="text-sm text-muted-foreground p-4 bg-muted rounded-md">
-              Este documento é gerenciado internamente. Nenhum link do Google Docs disponível ainda.
-            </p>
-          )}
         </CardContent>
         <CardFooter className="flex justify-end gap-2 pt-6">
-          {/* Share Button could be re-enabled here if ShareDocumentDialog is adapted for this page */}
-          {/* <Button variant="outline"><Share2 className="mr-2 h-4 w-4" /> Compartilhar</Button> */}
           <Link href={`/documents/${document.id}/edit`} passHref>
              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground"><Edit3 className="mr-2 h-4 w-4" /> Editar Detalhes</Button>
           </Link>
