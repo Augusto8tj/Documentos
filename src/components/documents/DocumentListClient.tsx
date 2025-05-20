@@ -28,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users, CalendarIcon, Filter, Folder, FileArchive } from "lucide-react";
+import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, Link2, Users, CalendarIcon, Filter, Folder, FileArchive, ExternalLink } from "lucide-react";
 import type { DocumentMetadata, DocumentSourceType } from "@/lib/types";
 import { DocumentType } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
@@ -51,7 +51,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { ExternalLink } from "lucide-react"; // Added for Google Docs icon
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 
 interface DocumentListClientProps {
   documents: DocumentMetadata[];
@@ -145,7 +146,10 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
   const handleDelete = (docId: string) => {
     console.log("Excluir documento:", docId);
+    // Here you would typically call an action to delete the document from the backend
+    // For now, we'll just filter it out from the local state for demonstration
     setProcessedDocs(prevDocs => prevDocs ? prevDocs.filter(doc => doc.id !== docId) : null);
+    // Potentially show a toast message
   };
   
   const handleClearFilters = () => {
@@ -162,12 +166,12 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
   const handleCreatedAtPeriodChange = (newPeriod: DateFilterPeriod) => {
     setFilterCreatedAtPeriod(newPeriod);
-    setFilterCreatedAtValue(undefined); 
+    setFilterCreatedAtValue(undefined); // Reset date value when period changes
   };
 
   const handleUpdatedAtPeriodChange = (newPeriod: DateFilterPeriod) => {
     setFilterUpdatedAtPeriod(newPeriod);
-    setFilterUpdatedAtValue(undefined); 
+    setFilterUpdatedAtValue(undefined); // Reset date value when period changes
   };
   
   const formatFilterDateButtonText = (period: DateFilterPeriod, value: Date | undefined): string => {
@@ -192,19 +196,25 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
 
    if (processedDocs === null && initialDocuments.length > 0) {
+     // Initial loading state or if initialDocuments exist but processedDocs haven't been set yet
+     // This could be a more sophisticated skeleton loader
      return (
       <div className="rounded-lg border shadow-sm bg-card p-4">
         <div className="animate-pulse">
+          {/* Skeleton for filter section title and clear button */}
           <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
+          {/* Skeleton for filter inputs */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6 p-4 items-end">
-            {[...Array(8)].map((_, i) => ( 
+            {[...Array(8)].map((_, i) => ( // Assuming roughly 8 filter controls
               <div key={i} className="space-y-1">
                 <div className="h-4 bg-muted rounded w-1/3"></div> 
                 <div className="h-10 bg-muted rounded"></div> 
               </div>
             ))}
           </div>
+          {/* Skeleton for table header */}
           <div className="h-10 bg-muted rounded w-full mb-2"></div>
+          {/* Skeleton for table rows */}
           {[...Array(3)].map((_, i) => (
             <div key={i} className="h-12 bg-muted rounded w-full mb-1"></div>
           ))}
@@ -213,7 +223,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     );
   }
   
-  const currentDocuments = processedDocs || [];
+  const currentDocuments = processedDocs || []; // Use processedDocs if available, otherwise empty array
 
   const getSourceTypeIcon = (sourceType: DocumentSourceType) => {
     switch (sourceType) {
@@ -224,7 +234,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
       case "internal":
         return <FileArchive className="h-4 w-4 text-gray-500" />;
       default:
-        return <FileText className="h-4 w-4 text-gray-400" />;
+        return <FileText className="h-4 w-4 text-gray-400" />; // Fallback icon
     }
   };
 
@@ -232,7 +242,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     <>
       <Accordion type="single" collapsible className="mb-6 bg-card border rounded-lg shadow-md" defaultValue="item-1">
         <AccordionItem value="item-1" className="border-b-0">
-          <div className="flex items-center justify-between p-4">
+           <div className="flex items-center justify-between p-4">
              <AccordionTrigger className="p-0 hover:no-underline flex-grow text-left">
               <div className="flex items-center gap-2">
                 <Filter className="h-5 w-5" />
@@ -299,14 +309,15 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                 </Select>
               </div>
               
+              {/* Date Created Filter */}
               <div className="space-y-1">
                 <Label htmlFor="filterCreatedAtPeriodSelect" className="text-sm font-medium text-muted-foreground">Data de Criação</Label>
                 <div className="flex gap-2 mt-1">
                   <Select 
                     value={filterCreatedAtPeriod} 
                     onValueChange={(value) => handleCreatedAtPeriodChange(value as DateFilterPeriod)}
-                    name="filterCreatedAtPeriodSelect" 
-                    aria-label="Período do filtro de data de criação" 
+                    name="filterCreatedAtPeriodSelect" // Added name for accessibility/testing if needed
+                    aria-label="Período do filtro de data de criação" // For accessibility
                   >
                     <SelectTrigger className="w-[120px]">
                       <SelectValue placeholder="Período" />
@@ -347,6 +358,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                 </div>
               </div>
 
+              {/* Date Updated Filter */}
               <div className="space-y-1">
                 <Label htmlFor="filterUpdatedAtPeriodSelect" className="text-sm font-medium text-muted-foreground">Data Últ. Modificação</Label>
                  <div className="flex gap-2 mt-1">
