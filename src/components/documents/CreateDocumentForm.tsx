@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Info } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 const formSchema = z.object({
   name: z.string().min(3, {
@@ -42,7 +43,7 @@ const formSchema = z.object({
     errorMap: () => ({ message: "Por favor, selecione a fonte do documento." }),
   }).default("internal"),
   localFileIdentifier: z.string().optional(),
-  // No googleDocsId here as it's simulated on creation or added on edit
+  internalContent: z.string().optional(),
 }).refine(data => {
   if (data.sourceType === "local" && (!data.localFileIdentifier || data.localFileIdentifier.trim() === "")) {
     return false;
@@ -69,31 +70,43 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
       type: initialTemplate ? initialTemplate.defaultDocumentType : undefined,
       sourceType: "internal",
       localFileIdentifier: "",
+      internalContent: initialTemplate?.baseContentPreview || "",
     },
   });
   
-  // Effect to update form values if initialTemplate changes after mount (e.g. async loading)
+  const currentSourceType = form.watch("sourceType");
+
   useEffect(() => {
     if (initialTemplate) {
       form.reset({
         name: `Documento Baseado em: ${initialTemplate.name}`,
         type: initialTemplate.defaultDocumentType,
-        sourceType: "internal", // Default to internal, user can change
+        sourceType: currentSourceType || "internal",
         localFileIdentifier: "",
+        internalContent: currentSourceType === "internal" ? initialTemplate.baseContentPreview : "",
       });
     } else {
-      // If no template, or template becomes null, reset to empty/default values
        form.reset({
         name: "",
-        type: undefined, // Or some other default if you prefer
-        sourceType: "internal",
+        type: undefined, 
+        sourceType: currentSourceType || "internal",
         localFileIdentifier: "",
+        internalContent: "",
       });
     }
-  }, [initialTemplate, form]);
+  }, [initialTemplate, form, currentSourceType]);
 
 
-  const currentSourceType = form.watch("sourceType");
+  useEffect(() => {
+    if (currentSourceType === "internal") {
+      if (initialTemplate && form.getValues("internalContent") !== initialTemplate.baseContentPreview ) { // Only set if it's different or to avoid loop
+        form.setValue("internalContent", initialTemplate.baseContentPreview);
+      }
+    } else {
+      form.setValue("internalContent", ""); 
+    }
+  }, [currentSourceType, initialTemplate, form]);
+
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
@@ -104,8 +117,11 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
     if (values.sourceType === "local" && values.localFileIdentifier) {
       formData.append("localFileIdentifier", values.localFileIdentifier);
     }
+    if (values.sourceType === "internal" && values.internalContent) {
+      formData.append("internalContent", values.internalContent);
+    }
     if (initialTemplate) {
-      formData.append("templateUsed", initialTemplate.name); // Optional: send template info
+      formData.append("templateUsed", initialTemplate.name); 
       formData.append("templateContentPreview", initialTemplate.baseContentPreview);
     }
 
@@ -119,12 +135,15 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
         description += ` Lembre-se de criar o documento no Google Docs usando o conteúdo base do modelo e adicionar o ID do Google Doc editando este documento.`;
       } else if (values.sourceType === "local" && initialTemplate) {
          description += ` O conteúdo base do modelo pode ser usado como referência para seu arquivo local.`;
+      } else if (values.sourceType === "internal" && initialTemplate) {
+        description += ` O conteúdo base do modelo foi pré-preenchido para edição.`;
       }
+
 
       toast({
         title: "Documento Criado",
         description: description,
-        duration: 7000, // Longer duration for the more detailed message
+        duration: 7000, 
       });
       router.push("/"); 
     } else {
@@ -217,7 +236,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                           <RadioGroupItem value="internal" />
                         </FormControl>
                         <FormLabel className="font-normal">
-                          Interno (sem link/arquivo)
+                          Interno (conteúdo no sistema)
                         </FormLabel>
                       </FormItem>
                       <FormItem className="flex items-center space-x-3 space-y-0">
@@ -259,7 +278,31 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                       <Input placeholder="e.g., C:\\Documentos\\ProjetoX.docx ou Servidor\\Oficios\\2024\\..." {...field} />
                     </FormControl>
                     <FormDescription>
-                      Insira o caminho ou referência para o arquivo local. O conteúdo base do modelo serve como guia para seu arquivo.
+                      Insira o caminho ou referência para o arquivo local. {initialTemplate && "O conteúdo base do modelo serve como guia para seu arquivo."}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {currentSourceType === "internal" && (
+              <FormField
+                control={form.control}
+                name="internalContent"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>
+                      {initialTemplate ? "Conteúdo Interno do Documento (Baseado no Modelo)" : "Conteúdo Interno do Documento"}
+                    </FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder={initialTemplate ? "Edite o conteúdo base do modelo aqui..." : "Digite o conteúdo do documento aqui..."}
+                        className="min-h-[200px]"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Este conteúdo será salvo com o documento.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

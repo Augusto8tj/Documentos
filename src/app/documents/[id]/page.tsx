@@ -91,9 +91,20 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
             </div>
           )}
           {document.sourceType === "internal" && (
-             <p className="text-sm text-muted-foreground p-4 bg-muted rounded-md">
-              Este documento é gerenciado internamente e não possui um link externo ou referência a arquivo local.
-            </p>
+             <>
+              {document.internalContent ? (
+                <div className="mt-4">
+                  <h3 className="font-semibold text-foreground">Conteúdo do Documento:</h3>
+                  <div className="mt-1 p-3 bg-muted rounded-md whitespace-pre-wrap text-muted-foreground text-sm max-h-[400px] overflow-y-auto border">
+                    {document.internalContent}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground p-4 bg-muted rounded-md mt-2">
+                  Este documento é gerenciado internamente e não possui conteúdo textual associado ou ele está vazio.
+                </p>
+              )}
+            </>
           )}
           {document.sourceType === "googleDocs" && !document.googleDocsId && (
              <p className="text-sm text-muted-foreground p-4 bg-muted rounded-md">

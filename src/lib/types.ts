@@ -22,6 +22,7 @@ export interface DocumentMetadata {
   sourceType: DocumentSourceType;
   googleDocsId?: string; // ID of the document in Google Docs
   localFileIdentifier?: string; // User-defined path or identifier for local files
+  internalContent?: string; // Conteúdo para documentos internos
   sharedWith?: { email: string; permission: "view" | "edit" }[];
 }
 

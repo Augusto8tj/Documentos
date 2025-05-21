@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 const formSchema = z.object({
   name: z.string().min(3, {
@@ -43,6 +44,7 @@ const formSchema = z.object({
   }),
   googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
+  internalContent: z.string().optional(),
 }).refine(data => {
   if (data.sourceType === "local" && (!data.localFileIdentifier || data.localFileIdentifier.trim() === "")) {
     return false;
@@ -79,6 +81,7 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
       sourceType: existingDocument.sourceType,
       googleDocsId: existingDocument.googleDocsId || "",
       localFileIdentifier: existingDocument.localFileIdentifier || "",
+      internalContent: existingDocument.internalContent || "",
     },
   });
 
@@ -98,6 +101,10 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
     if (values.sourceType === "local" && values.localFileIdentifier) {
       formData.append("localFileIdentifier", values.localFileIdentifier);
     }
+    if (values.sourceType === "internal" && values.internalContent) {
+      formData.append("internalContent", values.internalContent);
+    }
+
 
     const result = await updateDocumentAction(formData);
     setIsSubmitting(false);
@@ -123,7 +130,7 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
       <CardHeader>
         <CardTitle className="text-2xl">Editar Documento: {existingDocument.name}</CardTitle>
         <CardDescription>
-          Modifique os detalhes do documento abaixo.
+          Modifique os detalhes do documento abaixo. O número do documento ({existingDocument.number}) não pode ser alterado.
         </CardDescription>
       </CardHeader>
       <Form {...form}>
@@ -176,14 +183,15 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                     <RadioGroup
                       onValueChange={(value) => {
                         field.onChange(value);
-                        // Clear other fields when source type changes
                         if (value === "internal") {
                           form.setValue("googleDocsId", "");
                           form.setValue("localFileIdentifier", "");
                         } else if (value === "googleDocs") {
                           form.setValue("localFileIdentifier", "");
+                          form.setValue("internalContent", "");
                         } else if (value === "local") {
                           form.setValue("googleDocsId", "");
+                          form.setValue("internalContent", "");
                         }
                       }}
                       defaultValue={field.value}
@@ -194,7 +202,7 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                           <RadioGroupItem value="internal" />
                         </FormControl>
                         <FormLabel className="font-normal">
-                          Interno
+                          Interno (conteúdo no sistema)
                         </FormLabel>
                       </FormItem>
                       <FormItem className="flex items-center space-x-3 space-y-0">
@@ -249,6 +257,28 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                     </FormControl>
                     <FormDescription>
                      Insira o caminho ou referência para o arquivo local.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {currentSourceType === "internal" && (
+              <FormField
+                control={form.control}
+                name="internalContent"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Conteúdo Interno do Documento</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Digite o conteúdo do documento aqui..."
+                        className="min-h-[200px]"
+                        {...field}
+                      />
+                    </FormControl>
+                     <FormDescription>
+                      Este conteúdo é salvo diretamente no sistema.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

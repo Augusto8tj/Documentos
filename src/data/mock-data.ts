@@ -23,6 +23,7 @@ export const mockDocuments: DocumentMetadata[] = [
     createdAt: new Date(2024, 1, 10).toISOString(),
     updatedAt: new Date(2024, 1, 10).toISOString(),
     sourceType: "internal",
+    internalContent: "Este é o conteúdo do memorando sobre a reunião semanal.\n\nTópicos a serem discutidos:\n1. Revisão das metas do último sprint.\n2. Planejamento para o próximo sprint.\n3. Feedback dos clientes.",
     status: "Draft",
   },
   {
@@ -59,6 +60,7 @@ export const mockDocuments: DocumentMetadata[] = [
     createdAt: new Date(2024, 4, 1).toISOString(),
     updatedAt: new Date(2024, 4, 1).toISOString(),
     sourceType: "internal",
+    internalContent: "DECRETO Nº DEC-2024-010\n\nConsiderando a data comemorativa de Corpus Christi,\n\nArt. 1º Fica decretado ponto facultativo nas repartições públicas municipais no dia XX de Mês de XXXX.\nArt. 2º Este decreto entra em vigor na data de sua publicação.",
     status: "Published",
   },
 ];
@@ -92,11 +94,21 @@ export const updateDocumentMetadata = (
     // Ensure consistency based on sourceType
     if (updates.sourceType === "googleDocs") {
       userDocuments[docIndex].localFileIdentifier = undefined;
+      userDocuments[docIndex].internalContent = undefined;
     } else if (updates.sourceType === "local") {
       userDocuments[docIndex].googleDocsId = undefined;
+      userDocuments[docIndex].internalContent = undefined;
     } else if (updates.sourceType === "internal") {
       userDocuments[docIndex].googleDocsId = undefined;
       userDocuments[docIndex].localFileIdentifier = undefined;
+      // internalContent is set via 'updates' if provided, or remains if not in 'updates'
+      if (updates.internalContent !== undefined) {
+        userDocuments[docIndex].internalContent = updates.internalContent;
+      }
+    } else { // If sourceType is not in updates, but other fields are, ensure internalContent is cleared if it's not internal
+        if(userDocuments[docIndex].sourceType !== 'internal') {
+            userDocuments[docIndex].internalContent = undefined;
+        }
     }
     return true;
   }
