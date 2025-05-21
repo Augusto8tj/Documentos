@@ -32,6 +32,8 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Loader2, Info, ClipboardPaste } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
+const localStorageProfileKey = "docflow-profile"; // Key for profile in localStorage
+
 const formSchema = z.object({
   name: z.string().min(3, {
     message: "O nome do documento deve ter pelo menos 3 caracteres.",
@@ -45,6 +47,7 @@ const formSchema = z.object({
   googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
   internalContent: z.string().optional(),
+  // Author fields are not part of the form schema itself, they are added to FormData
 }).refine(data => {
   if (data.sourceType === "local" && (!data.localFileIdentifier || data.localFileIdentifier.trim() === "")) {
     return false;
@@ -91,10 +94,12 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
       form.reset({
         name: `Documento Baseado em: ${initialTemplate.name}`,
         type: initialTemplate.defaultDocumentType,
-        sourceType: currentSourceType || "internal",
+        sourceType: currentSourceType || "internal", // Preserve if changed, else default to internal
         googleDocsId: "",
         localFileIdentifier: "",
-        internalContent: currentSourceType === "internal" ? initialTemplate.baseContentPreview : "",
+        internalContent: (currentSourceType === "internal" || (!currentSourceType && "internal" === "internal")) 
+                         ? initialTemplate.baseContentPreview 
+                         : "",
       });
     } else {
        form.reset({
@@ -113,7 +118,10 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
   useEffect(() => {
     if (currentSourceType === "internal") {
       if (initialTemplate && form.getValues("internalContent") !== initialTemplate.baseContentPreview ) {
-        form.setValue("internalContent", initialTemplate.baseContentPreview);
+        // Only set from template if it's not already explicitly set by the user or if it differs
+        if(!form.getValues("internalContent") || form.getValues("internalContent") === ""){
+            form.setValue("internalContent", initialTemplate.baseContentPreview);
+        }
       }
     } else {
       form.setValue("internalContent", ""); 
@@ -181,19 +189,33 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
       formData.append("templateContentPreview", initialTemplate.baseContentPreview);
     }
 
+    // Get author from localStorage
+    const storedProfile = localStorage.getItem(localStorageProfileKey);
+    if (storedProfile) {
+      try {
+        const profile = JSON.parse(storedProfile);
+        if (profile.name) formData.append("authorName", profile.name);
+        if (profile.email) formData.append("authorEmail", profile.email);
+      } catch (e) {
+        console.error("Erro ao ler perfil do localStorage para autor:", e);
+      }
+    }
+
+
     const result = await createDocumentAction(formData);
 
     setIsSubmitting(false);
 
     if (result.success && result.documentId) {
-      let description = `"${values.name}" foi criado. Você será redirecionado para a página de detalhes.`;
+      let description = `Documento "${values.name}" criado. Você será redirecionado para a página de detalhes.`;
       if (values.sourceType === "googleDocs" && initialTemplate) {
-        description += ` Lembre-se de criar o documento no Google Docs usando o conteúdo base do modelo e adicionar o ID do Google Doc editando este documento.`;
+        description = `Documento "${values.name}" criado. Lembre-se de criar o documento no Google Docs usando o conteúdo base do modelo e adicionar o ID do Google Doc editando este documento no sistema. Redirecionando...`;
       } else if (values.sourceType === "local" && initialTemplate) {
-         description += ` O conteúdo base do modelo pode ser usado como referência para seu arquivo local.`;
+         description = `Documento "${values.name}" criado. O conteúdo base do modelo pode ser usado como referência para seu arquivo local. Redirecionando...`;
       } else if (values.sourceType === "internal" && initialTemplate) {
-        description += ` O conteúdo base do modelo foi pré-preenchido para edição.`;
+        description = `Documento "${values.name}" criado com conteúdo base do modelo. Redirecionando...`;
       }
+
 
       toast({
         title: "Documento Criado",
@@ -284,13 +306,12 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                     <RadioGroup
                       onValueChange={(value) => {
                         field.onChange(value);
-                        if (value === "internal") {
-                          form.setValue("googleDocsId", "");
-                          form.setValue("localFileIdentifier", "");
-                        } else if (value === "googleDocs") {
-                          form.setValue("localFileIdentifier", "");
-                        } else if (value === "local") {
-                          form.setValue("googleDocsId", "");
+                        form.setValue("googleDocsId", "");
+                        form.setValue("localFileIdentifier", "");
+                        if (value === "internal" && initialTemplate) {
+                           form.setValue("internalContent", initialTemplate.baseContentPreview);
+                        } else if (value !== "internal") {
+                           form.setValue("internalContent", "");
                         }
                       }}
                       defaultValue={field.value}
@@ -403,7 +424,9 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>
-                      {initialTemplate ? "Conteúdo Interno do Documento (Baseado no Modelo)" : "Conteúdo Interno do Documento"}
+                      {initialTemplate && form.getValues("internalContent") === initialTemplate.baseContentPreview 
+                        ? "Conteúdo Interno do Documento (Baseado no Modelo)" 
+                        : "Conteúdo Interno do Documento"}
                     </FormLabel>
                     <FormControl>
                       <Textarea
@@ -432,5 +455,3 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
     </Card>
   );
 }
-
-    

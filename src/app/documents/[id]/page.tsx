@@ -2,7 +2,7 @@
 import { getDocumentById } from "@/data/mock-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { ArrowLeft, ExternalLink, Edit3, Folder, FileArchive } from "lucide-react";
+import { ArrowLeft, ExternalLink, Edit3, Folder, FileArchive, User } from "lucide-react"; // Adicionado User
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
@@ -113,6 +113,16 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
              <p className="text-sm text-muted-foreground p-4 bg-muted rounded-md">
               Este documento está marcado como Google Docs, mas nenhum ID foi fornecido. Edite para adicionar.
             </p>
+          )}
+          {document.author && (
+             <div>
+              <h3 className="font-semibold text-foreground flex items-center">
+                <User className="mr-2 h-4 w-4 text-muted-foreground" /> Autor:
+              </h3>
+              <p className="text-muted-foreground ml-6">
+                {document.author.name} ({document.author.email})
+              </p>
+            </div>
           )}
           <div>
             <h3 className="font-semibold text-foreground">Criado em:</h3>

@@ -14,6 +14,7 @@ export const mockDocuments: DocumentMetadata[] = [
     googleDocsId: "mockGoogleDocId1",
     sharedWith: [{ email: "colleague1@example.com", permission: "edit" }],
     status: "Published",
+    author: { name: "Usuário Exemplo", email: "usuario@exemplo.com" },
   },
   {
     id: "2",
@@ -25,6 +26,7 @@ export const mockDocuments: DocumentMetadata[] = [
     sourceType: "internal",
     internalContent: "Este é o conteúdo do memorando sobre a reunião semanal.\n\nTópicos a serem discutidos:\n1. Revisão das metas do último sprint.\n2. Planejamento para o próximo sprint.\n3. Feedback dos clientes.",
     status: "Draft",
+    author: { name: "Ana Silva", email: "ana.silva@example.com" },
   },
   {
     id: "3",
@@ -51,6 +53,7 @@ export const mockDocuments: DocumentMetadata[] = [
     sourceType: "local",
     localFileIdentifier: "C:\\Reuniões\\Diretoria\\ATA-2024-002.pdf",
     status: "Published",
+    author: { name: "Carlos Pereira", email: "carlos.p@example.com" },
   },
   {
     id: "5",
@@ -127,5 +130,3 @@ export const getDocumentById = async (id: string): Promise<DocumentMetadata | un
   await new Promise(resolve => setTimeout(resolve, 200));
   return userDocuments.find(doc => doc.id === id);
 };
-
-    

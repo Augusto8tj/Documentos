@@ -18,6 +18,8 @@ const CreateDocumentSchema = z.object({
   googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
   internalContent: z.string().optional(),
+  authorName: z.string().optional(),
+  authorEmail: z.string().optional(),
 }).refine(data => {
   if (data.sourceType === "local" && (!data.localFileIdentifier || data.localFileIdentifier.trim() === "")) {
     return false;
@@ -44,6 +46,8 @@ export async function createDocumentAction(formData: FormData) {
     googleDocsId: formData.get("googleDocsId") || undefined,
     localFileIdentifier: formData.get("localFileIdentifier") || undefined,
     internalContent: formData.get("internalContent") || undefined,
+    authorName: formData.get("authorName") || undefined,
+    authorEmail: formData.get("authorEmail") || undefined,
   };
   const validatedFields = CreateDocumentSchema.safeParse(rawFormData);
 
@@ -53,7 +57,16 @@ export async function createDocumentAction(formData: FormData) {
     };
   }
 
-  const { name, type, sourceType, googleDocsId, localFileIdentifier, internalContent } = validatedFields.data;
+  const { 
+    name, 
+    type, 
+    sourceType, 
+    googleDocsId, 
+    localFileIdentifier, 
+    internalContent,
+    authorName,
+    authorEmail 
+  } = validatedFields.data;
 
   const typePrefix = type.substring(0, 3).toUpperCase();
   const countForType = userDocuments.filter(doc => doc.type === type).length + 1;
@@ -72,11 +85,15 @@ export async function createDocumentAction(formData: FormData) {
     sharedWith: [],
   };
 
-  if (sourceType === "googleDocs") {
+  if (authorName && authorEmail) {
+    newDocument.author = { name: authorName, email: authorEmail };
+  }
+
+  if (sourceType === "googleDocs" && googleDocsId) {
     newDocument.googleDocsId = googleDocsId;
   } else if (sourceType === "local" && localFileIdentifier) {
     newDocument.localFileIdentifier = localFileIdentifier;
-  } else if (sourceType === "internal") {
+  } else if (sourceType === "internal" && internalContent) {
     newDocument.internalContent = internalContent;
   }
 
@@ -84,6 +101,8 @@ export async function createDocumentAction(formData: FormData) {
   
   revalidatePath("/"); 
   revalidatePath("/documents/create"); 
+  revalidatePath(`/documents/${newDocument.id}`);
+
 
   return { success: true, documentId: newDocument.id };
 }
@@ -170,19 +189,24 @@ export async function updateDocumentAction(formData: FormData) {
 
   const updates: Partial<DocumentMetadata> = { name, type, sourceType: sourceType as DocumentSourceType };
 
-  if (sourceType === "googleDocs") {
+  if (sourceType === "googleDocs" && googleDocsId) {
     updates.googleDocsId = googleDocsId;
     updates.localFileIdentifier = undefined; 
     updates.internalContent = undefined;
-  } else if (sourceType === "local") {
+  } else if (sourceType === "local" && localFileIdentifier) {
     updates.localFileIdentifier = localFileIdentifier;
     updates.googleDocsId = undefined; 
     updates.internalContent = undefined;
-  } else { // internal
+  } else if (sourceType === "internal") { // internal
     updates.googleDocsId = undefined;
     updates.localFileIdentifier = undefined;
     updates.internalContent = internalContent;
+  } else { // Should not happen if sourceType is always one of the three, but as a fallback
+    updates.googleDocsId = undefined;
+    updates.localFileIdentifier = undefined;
+    updates.internalContent = undefined;
   }
+
 
   const success = dbUpdateDocumentMetadata(id, updates);
 
@@ -198,4 +222,3 @@ export async function updateDocumentAction(formData: FormData) {
 
   return { success: true, documentId: id };
 }
-

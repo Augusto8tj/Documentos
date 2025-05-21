@@ -24,6 +24,7 @@ export interface DocumentMetadata {
   localFileIdentifier?: string; // User-defined path or identifier for local files
   internalContent?: string; // Conteúdo para documentos internos
   sharedWith?: { email: string; permission: "view" | "edit" }[];
+  author?: { name: string; email: string }; // Novo campo para o autor
 }
 
 export interface TemplateMetadata {
