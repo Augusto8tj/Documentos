@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -27,7 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, ExternalLink, Users, CalendarIcon, Filter, Folder, FileArchive, CheckCircle2, FileEdit, Archive } from "lucide-react";
+import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, ExternalLink, Users, CalendarIcon, Filter, Folder, FileArchive, CheckCircle2, FileEdit, Archive, User } from "lucide-react";
 import type { DocumentMetadata, DocumentSourceType } from "@/lib/types";
 import { DocumentType } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
@@ -81,6 +82,8 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
   const [filterSourceType, setFilterSourceType] = useState<DocumentSourceType | "all">("all");
   const [filterSharedEmail, setFilterSharedEmail] = useState("");
+  const [filterAuthorEmail, setFilterAuthorEmail] = useState("");
+
 
   useEffect(() => {
     const formattedInitialDocs = initialDocuments.map(doc => ({
@@ -127,8 +130,11 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
       const sharedEmailMatch = filterSharedEmail === "" ||
                                (doc.sharedWith && doc.sharedWith.some(user => user.email.toLowerCase().includes(filterSharedEmail.toLowerCase())));
+
+      const authorEmailMatch = filterAuthorEmail === "" ||
+                               (doc.author && doc.author.email.toLowerCase().includes(filterAuthorEmail.toLowerCase()));
       
-      return searchTermMatch && typeMatch && statusMatch && createdAtMatch && updatedAtMatch && sourceTypeMatch && sharedEmailMatch;
+      return searchTermMatch && typeMatch && statusMatch && createdAtMatch && updatedAtMatch && sourceTypeMatch && sharedEmailMatch && authorEmailMatch;
     });
     
     setProcessedDocs(filtered);
@@ -136,7 +142,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   }, [initialDocuments, filterSearchTerm, filterType, filterStatus, 
       filterCreatedAtPeriod, filterCreatedAtValue, 
       filterUpdatedAtPeriod, filterUpdatedAtValue,
-      filterSourceType, filterSharedEmail]);
+      filterSourceType, filterSharedEmail, filterAuthorEmail]);
 
   const handleShare = (doc: DocumentMetadata) => {
     setSelectedDocumentForShare(doc);
@@ -161,6 +167,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     setFilterUpdatedAtValue(undefined);
     setFilterSourceType("all");
     setFilterSharedEmail("");
+    setFilterAuthorEmail("");
   };
 
   const handleCreatedAtPeriodChange = (newPeriod: DateFilterPeriod) => {
@@ -262,10 +269,10 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     <>
       <Accordion type="single" collapsible className="mb-6 bg-accent/10 dark:bg-accent/20 border border-accent/30 rounded-lg shadow-md">
         <AccordionItem value="item-1" className="border-b-0">
-           <div className="flex items-center justify-between p-4">
-             <AccordionTrigger className="flex-grow text-left">
+          <div className="flex items-center justify-between p-4">
+            <AccordionTrigger className="flex-grow text-left">
               <div className="flex items-center gap-2">
-                <Filter className="h-5 w-5 text-primary" />
+                <Filter className="h-6 w-6 text-primary" />
                 <h3 className="text-xl font-bold text-primary">Filtros</h3>
               </div>
             </AccordionTrigger>
@@ -427,13 +434,26 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
               <div>
                 <Label htmlFor="filterSharedEmail" className="text-sm font-medium text-muted-foreground db-block mb-1">
                   <Users className="inline mr-1 h-4 w-4" />
-                  Compartilhado com
+                  Compartilhado com (e-mail)
                 </Label>
                 <Input
                   id="filterSharedEmail"
                   placeholder="Buscar por e-mail..."
                   value={filterSharedEmail}
                   onChange={(e) => setFilterSharedEmail(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="filterAuthorEmail" className="text-sm font-medium text-muted-foreground db-block mb-1">
+                  <User className="inline mr-1 h-4 w-4" />
+                  Autor (e-mail)
+                </Label>
+                <Input
+                  id="filterAuthorEmail"
+                  placeholder="Buscar por e-mail do autor..."
+                  value={filterAuthorEmail}
+                  onChange={(e) => setFilterAuthorEmail(e.target.value)}
                   className="mt-1"
                 />
               </div>
@@ -559,3 +579,5 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     </>
   );
 }
+
+    
