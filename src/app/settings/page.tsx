@@ -28,10 +28,10 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
-type Theme = "light" | "dark" | "system";
+type Theme = "light" | "dark" | "system" | "feminine" | "professional";
 
 const localStorageProfileKey = "docflow-profile";
-const localStorageThemeKey = "docflow-theme";
+const localStorageThemeKey = "docflow-active-theme"; // Updated key
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -62,7 +62,7 @@ export default function SettingsPage() {
   // Load theme from localStorage
   useEffect(() => {
     const storedTheme = localStorage.getItem(localStorageThemeKey) as Theme | null;
-    if (storedTheme && ["light", "dark", "system"].includes(storedTheme)) {
+    if (storedTheme && ["light", "dark", "system", "feminine", "professional"].includes(storedTheme)) {
       setSelectedTheme(storedTheme);
     }
   }, []);
@@ -91,27 +91,36 @@ export default function SettingsPage() {
   const handleThemeChange = (theme: Theme) => {
     setSelectedTheme(theme);
     localStorage.setItem(localStorageThemeKey, theme);
-    // Disparar um evento de storage para que o RootLayout possa capturar a mudança
-    // se estiver ouvindo, ou para que outras abas possam reagir.
-    window.dispatchEvent(new StorageEvent('storage', { key: localStorageThemeKey, newValue: theme }));
     
-    // A aplicação real do tema (classe 'dark') é feita no RootLayout
-    // para garantir consistência e evitar FOUC.
-    // No entanto, para feedback imediato aqui, podemos também tentar aplicar:
+    // Remove all theme classes first
+    document.documentElement.classList.remove("dark", "theme-feminine", "theme-professional");
+
+    // Apply new theme class
     if (theme === "dark") {
       document.documentElement.classList.add("dark");
-    } else if (theme === "light") {
-      document.documentElement.classList.remove("dark");
-    } else { // system
+    } else if (theme === "feminine") {
+      document.documentElement.classList.add("theme-feminine");
+    } else if (theme === "professional") {
+      document.documentElement.classList.add("theme-professional");
+    } else if (theme === "system") { 
       if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
         document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
       }
     }
+    // For "light", no class is needed as it's the default.
+
+    // Dispatch storage event for ThemeManager to pick up if needed, especially for "system"
+    window.dispatchEvent(new StorageEvent('storage', { key: localStorageThemeKey, newValue: theme }));
+    
+    let themeName = "Padrão do Sistema";
+    if (theme === "light") themeName = "Claro";
+    else if (theme === "dark") themeName = "Escuro";
+    else if (theme === "feminine") themeName = "Feminino";
+    else if (theme === "professional") themeName = "Profissional";
+
      toast({
         title: "Tema Alterado",
-        description: `O tema foi definido como ${theme === "light" ? "Claro" : theme === "dark" ? "Escuro" : "Padrão do Sistema"}.`,
+        description: `O tema foi definido como ${themeName}.`,
       });
   };
 
@@ -176,28 +185,40 @@ export default function SettingsPage() {
           <CardDescription>Escolha como o sistema DocFlow deve aparecer para você.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Label>Tema</Label> {/* Use standard Label here */}
+          <Label>Tema</Label> 
           <RadioGroup
             value={selectedTheme}
             onValueChange={(value: string) => handleThemeChange(value as Theme)}
-            className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-4 pt-2" // Added pt-2 for spacing
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2"
           >
-            <div className="flex items-center space-x-3 space-y-0"> {/* Use div instead of FormItem */}
+            <div className="flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
               <RadioGroupItem value="light" id="theme-light" />
-              <Label htmlFor="theme-light" className="font-normal"> {/* Use standard Label */}
+              <Label htmlFor="theme-light" className="font-normal cursor-pointer flex-1"> 
                 Claro
               </Label>
             </div>
-            <div className="flex items-center space-x-3 space-y-0"> {/* Use div instead of FormItem */}
+            <div className="flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
               <RadioGroupItem value="dark" id="theme-dark" />
-              <Label htmlFor="theme-dark" className="font-normal"> {/* Use standard Label */}
+              <Label htmlFor="theme-dark" className="font-normal cursor-pointer flex-1"> 
                 Escuro
               </Label>
             </div>
-            <div className="flex items-center space-x-3 space-y-0"> {/* Use div instead of FormItem */}
+            <div className="flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
               <RadioGroupItem value="system" id="theme-system" />
-              <Label htmlFor="theme-system" className="font-normal"> {/* Use standard Label */}
+              <Label htmlFor="theme-system" className="font-normal cursor-pointer flex-1"> 
                 Padrão do Sistema
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
+              <RadioGroupItem value="feminine" id="theme-feminine" />
+              <Label htmlFor="theme-feminine" className="font-normal cursor-pointer flex-1"> 
+                Feminino
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
+              <RadioGroupItem value="professional" id="theme-professional" />
+              <Label htmlFor="theme-professional" className="font-normal cursor-pointer flex-1"> 
+                Profissional
               </Label>
             </div>
           </RadioGroup>

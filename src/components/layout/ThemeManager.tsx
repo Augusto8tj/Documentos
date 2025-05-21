@@ -3,22 +3,27 @@
 
 import { useEffect } from "react";
 
-const localStorageThemeKey = "docflow-theme"; // Key for storing theme preference
+const localStorageThemeKey = "docflow-active-theme"; // Key for storing theme preference
 
 export function ThemeManager() {
   useEffect(() => {
     const applyThemePreference = () => {
-      const storedTheme = localStorage.getItem(localStorageThemeKey) as "light" | "dark" | "system" | null;
+      const storedTheme = localStorage.getItem(localStorageThemeKey) as "light" | "dark" | "system" | "feminine" | "professional" | null;
       
+      // Remove all potential theme classes first to avoid conflicts
+      document.documentElement.classList.remove("dark", "theme-feminine", "theme-professional");
+
       if (storedTheme === "dark") {
         document.documentElement.classList.add("dark");
+      } else if (storedTheme === "feminine") {
+        document.documentElement.classList.add("theme-feminine");
+      } else if (storedTheme === "professional") {
+        document.documentElement.classList.add("theme-professional");
       } else if (storedTheme === "light") {
-        document.documentElement.classList.remove("dark");
-      } else { // System or no preference
+        // No class needed for light theme, it uses :root defaults
+      } else { // System or no preference (defaults to system behavior)
         if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
           document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
         }
       }
     };
@@ -28,7 +33,7 @@ export function ThemeManager() {
     // Listen for system theme changes (if 'system' is the theme)
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const handleSystemThemeChange = () => {
-      const currentThemeSetting = localStorage.getItem(localStorageThemeKey);
+      const currentThemeSetting = localStorage.getItem(localStorageThemeKey) as Theme | null;
       if (currentThemeSetting === "system" || !currentThemeSetting) {
         applyThemePreference();
       }
