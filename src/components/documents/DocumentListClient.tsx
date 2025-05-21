@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -261,16 +260,16 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
   return (
     <>
-      <Accordion type="single" collapsible className="mb-6 bg-card border rounded-lg shadow-md" defaultValue="item-1">
+      <Accordion type="single" collapsible className="mb-6 bg-accent/10 dark:bg-accent/20 border border-accent/30 rounded-lg shadow-md">
         <AccordionItem value="item-1" className="border-b-0">
            <div className="flex items-center justify-between p-4">
-             <AccordionTrigger className="p-0 hover:no-underline flex-grow text-left">
+             <AccordionTrigger className="flex-grow text-left">
               <div className="flex items-center gap-2">
-                <Filter className="h-5 w-5" />
-                <h3 className="text-lg font-semibold text-foreground">Filtros</h3>
+                <Filter className="h-5 w-5 text-primary" />
+                <h3 className="text-xl font-bold text-primary">Filtros</h3>
               </div>
             </AccordionTrigger>
-            <Button variant="outline" onClick={handleClearFilters} size="sm" className="ml-4 flex-shrink-0">
+            <Button variant="ghost" onClick={handleClearFilters} size="sm" className="ml-4 flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent/30">
               <X className="mr-2 h-4 w-4" />
               Limpar Filtros
             </Button>
@@ -560,4 +559,3 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     </>
   );
 }
-
