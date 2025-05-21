@@ -28,10 +28,10 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
-type Theme = "light" | "dark" | "system" | "feminine" | "professional";
+type Theme = "light" | "dark" | "system" | "feminine" | "professional" | "playful" | "serif-classic";
 
 const localStorageProfileKey = "docflow-profile";
-const localStorageThemeKey = "docflow-active-theme"; // Updated key
+const localStorageThemeKey = "docflow-active-theme"; 
 
 export default function SettingsPage() {
   const { toast } = useToast();
@@ -62,7 +62,7 @@ export default function SettingsPage() {
   // Load theme from localStorage
   useEffect(() => {
     const storedTheme = localStorage.getItem(localStorageThemeKey) as Theme | null;
-    if (storedTheme && ["light", "dark", "system", "feminine", "professional"].includes(storedTheme)) {
+    if (storedTheme && ["light", "dark", "system", "feminine", "professional", "playful", "serif-classic"].includes(storedTheme)) {
       setSelectedTheme(storedTheme);
     }
   }, []);
@@ -93,7 +93,7 @@ export default function SettingsPage() {
     localStorage.setItem(localStorageThemeKey, theme);
     
     // Remove all theme classes first
-    document.documentElement.classList.remove("dark", "theme-feminine", "theme-professional");
+    document.documentElement.classList.remove("dark", "theme-feminine", "theme-professional", "theme-playful", "theme-serif-classic");
 
     // Apply new theme class
     if (theme === "dark") {
@@ -102,6 +102,10 @@ export default function SettingsPage() {
       document.documentElement.classList.add("theme-feminine");
     } else if (theme === "professional") {
       document.documentElement.classList.add("theme-professional");
+    } else if (theme === "playful") {
+      document.documentElement.classList.add("theme-playful");
+    } else if (theme === "serif-classic") {
+      document.documentElement.classList.add("theme-serif-classic");
     } else if (theme === "system") { 
       if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
         document.documentElement.classList.add("dark");
@@ -109,7 +113,6 @@ export default function SettingsPage() {
     }
     // For "light", no class is needed as it's the default.
 
-    // Dispatch storage event for ThemeManager to pick up if needed, especially for "system"
     window.dispatchEvent(new StorageEvent('storage', { key: localStorageThemeKey, newValue: theme }));
     
     let themeName = "Padrão do Sistema";
@@ -117,6 +120,9 @@ export default function SettingsPage() {
     else if (theme === "dark") themeName = "Escuro";
     else if (theme === "feminine") themeName = "Feminino";
     else if (theme === "professional") themeName = "Profissional";
+    else if (theme === "playful") themeName = "Divertido";
+    else if (theme === "serif-classic") themeName = "Serifa Clássico";
+
 
      toast({
         title: "Tema Alterado",
@@ -189,7 +195,7 @@ export default function SettingsPage() {
           <RadioGroup
             value={selectedTheme}
             onValueChange={(value: string) => handleThemeChange(value as Theme)}
-            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 pt-2"
+            className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-2"
           >
             <div className="flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
               <RadioGroupItem value="light" id="theme-light" />
@@ -221,9 +227,23 @@ export default function SettingsPage() {
                 Profissional
               </Label>
             </div>
+            <div className="flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
+              <RadioGroupItem value="playful" id="theme-playful" />
+              <Label htmlFor="theme-playful" className="font-normal cursor-pointer flex-1"> 
+                Divertido
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
+              <RadioGroupItem value="serif-classic" id="theme-serif-classic" />
+              <Label htmlFor="theme-serif-classic" className="font-normal cursor-pointer flex-1"> 
+                Serifa Clássico
+              </Label>
+            </div>
           </RadioGroup>
         </CardContent>
       </Card>
     </div>
   );
 }
+
+    

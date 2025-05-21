@@ -4,11 +4,12 @@
 @tailwind utilities;
 
 body {
-  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  font-family: var(--font-body-theme), Arial, Helvetica, sans-serif;
 }
 
 @layer base {
   :root {
+    --font-body-theme: var(--font-geist-sans); /* Default font */
     --background: 0 0% 94.1%; /* Light Gray #F0F0F0 */
     --foreground: 240 10% 3.9%; /* Dark text for readability */
 
@@ -57,6 +58,7 @@ body {
   }
 
   .dark {
+    --font-body-theme: var(--font-geist-sans);
     --background: 240 5% 12%;
     --foreground: 0 0% 95%;
     --card: 240 5% 15%;
@@ -76,6 +78,7 @@ body {
     --border: 240 5% 25%;
     --input: 240 5% 25%;
     --ring: 207 70% 65%;
+    --radius: 0.5rem;
 
     --sidebar-background: 240 5% 10%;
     --sidebar-foreground: 0 0% 95%;
@@ -94,6 +97,7 @@ body {
   }
 
   .theme-feminine {
+    --font-body-theme: var(--font-geist-sans);
     --background: 330 100% 97%;
     --foreground: 300 20% 25%;
     --card: 330 100% 99%;
@@ -113,6 +117,7 @@ body {
     --border: 330 60% 90%;
     --input: 330 60% 90%;
     --ring: 330 80% 70%;
+    --radius: 0.5rem;
 
     --sidebar-background: 330 100% 98%; 
     --sidebar-foreground: 300 20% 25%;
@@ -131,6 +136,7 @@ body {
   }
 
   .theme-professional {
+    --font-body-theme: var(--font-geist-sans);
     --background: 220 30% 96%;
     --foreground: 220 25% 20%;
     --card: 220 30% 99%;
@@ -150,6 +156,7 @@ body {
     --border: 220 20% 85%;
     --input: 220 20% 85%;
     --ring: 210 70% 55%;
+    --radius: 0.5rem;
 
     --sidebar-background: 220 30% 98%; 
     --sidebar-foreground: 220 25% 20%;
@@ -166,6 +173,84 @@ body {
     --chart-4: 0 0% 50%; /* Grey */
     --chart-5: 27 87% 67%;
   }
+
+  .theme-playful {
+    --font-body-theme: 'Arial Rounded MT Bold', 'Quicksand', sans-serif;
+    --background: 50 100% 95%; /* Light Yellow */
+    --foreground: 30 40% 20%; /* Dark Brown */
+    --card: 50 100% 98%;
+    --card-foreground: 30 40% 20%;
+    --popover: 50 100% 98%;
+    --popover-foreground: 30 40% 20%;
+    --primary: 30 90% 60%; /* Bright Orange */
+    --primary-foreground: 0 0% 100%; /* White */
+    --secondary: 50 80% 90%;
+    --secondary-foreground: 30 40% 20%;
+    --muted: 50 80% 90%;
+    --muted-foreground: 30 30% 40%;
+    --accent: 170 70% 55%; /* Bright Teal */
+    --accent-foreground: 170 100% 15%; /* Dark Blue/Green */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 40 60% 85%;
+    --input: 40 60% 85%;
+    --ring: 30 90% 60%;
+    --radius: 0.75rem; /* More rounded */
+
+    --sidebar-background: 50 100% 97%; 
+    --sidebar-foreground: 30 40% 20%;
+    --sidebar-primary: 30 90% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 50 90% 92%;
+    --sidebar-accent-foreground: 30 90% 40%;
+    --sidebar-border: 40 60% 85%;
+    --sidebar-ring: 30 90% 60%;
+
+    --chart-1: 30 80% 65%; /* Orange variant */
+    --chart-2: 170 60% 50%; /* Teal variant */
+    --chart-3: 200 70% 60%; /* Blue variant */
+    --chart-4: 320 70% 70%; /* Pink variant */
+    --chart-5: 100 50% 60%; /* Green variant */
+  }
+
+  .theme-serif-classic {
+    --font-body-theme: 'Georgia', 'Times New Roman', serif;
+    --background: 40 50% 97%; /* Off-white/Cream */
+    --foreground: 30 20% 25%; /* Dark Gray/Brown */
+    --card: 40 50% 99%;
+    --card-foreground: 30 20% 25%;
+    --popover: 40 50% 99%;
+    --popover-foreground: 30 20% 25%;
+    --primary: 340 60% 45%; /* Deep Burgundy */
+    --primary-foreground: 40 100% 95%; /* Light Cream */
+    --secondary: 40 30% 92%;
+    --secondary-foreground: 30 20% 25%;
+    --muted: 40 30% 92%;
+    --muted-foreground: 30 20% 45%;
+    --accent: 45 60% 70%; /* Muted Gold */
+    --accent-foreground: 45 100% 15%; /* Dark Brown */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 40 30% 88%;
+    --input: 40 30% 88%;
+    --ring: 340 60% 45%;
+    --radius: 0.3rem; /* Sharper corners */
+
+    --sidebar-background: 40 50% 98%; 
+    --sidebar-foreground: 30 20% 25%;
+    --sidebar-primary: 340 60% 45%;
+    --sidebar-primary-foreground: 40 100% 95%;
+    --sidebar-accent: 40 40% 93%;
+    --sidebar-accent-foreground: 340 60% 30%;
+    --sidebar-border: 40 30% 88%;
+    --sidebar-ring: 340 60% 45%;
+
+    --chart-1: 340 50% 50%; /* Burgundy variant */
+    --chart-2: 45 50% 60%; /* Gold variant */
+    --chart-3: 20 30% 50%; /* Brown variant */
+    --chart-4: 0 0% 60%;   /* Grey variant */
+    --chart-5: 120 20% 55%; /* Muted Green variant */
+  }
 }
 
 @layer base {
@@ -176,3 +261,5 @@ body {
     @apply bg-background text-foreground;
   }
 }
+
+    
