@@ -11,7 +11,7 @@ import {
   FormControl,
   FormField,
   FormItem,
-  FormLabel,
+  FormLabel, // Used for react-hook-form fields
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Loader2, User, Palette } from "lucide-react";
+import { Label } from "@/components/ui/label"; // Import standard Label
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }).max(50, { message: "O nome não pode exceder 50 caracteres." }),
@@ -175,36 +176,30 @@ export default function SettingsPage() {
           <CardDescription>Escolha como o sistema DocFlow deve aparecer para você.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <FormLabel>Tema</FormLabel>
+          <Label>Tema</Label> {/* Use standard Label here */}
           <RadioGroup
             value={selectedTheme}
             onValueChange={(value: string) => handleThemeChange(value as Theme)}
-            className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-4"
+            className="flex flex-col space-y-2 sm:flex-row sm:space-y-0 sm:space-x-4 pt-2" // Added pt-2 for spacing
           >
-            <FormItem className="flex items-center space-x-3 space-y-0">
-              <FormControl>
-                <RadioGroupItem value="light" id="theme-light" />
-              </FormControl>
-              <FormLabel htmlFor="theme-light" className="font-normal">
+            <div className="flex items-center space-x-3 space-y-0"> {/* Use div instead of FormItem */}
+              <RadioGroupItem value="light" id="theme-light" />
+              <Label htmlFor="theme-light" className="font-normal"> {/* Use standard Label */}
                 Claro
-              </FormLabel>
-            </FormItem>
-            <FormItem className="flex items-center space-x-3 space-y-0">
-              <FormControl>
-                <RadioGroupItem value="dark" id="theme-dark" />
-              </FormControl>
-              <FormLabel htmlFor="theme-dark" className="font-normal">
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3 space-y-0"> {/* Use div instead of FormItem */}
+              <RadioGroupItem value="dark" id="theme-dark" />
+              <Label htmlFor="theme-dark" className="font-normal"> {/* Use standard Label */}
                 Escuro
-              </FormLabel>
-            </FormItem>
-            <FormItem className="flex items-center space-x-3 space-y-0">
-              <FormControl>
-                <RadioGroupItem value="system" id="theme-system" />
-              </FormControl>
-              <FormLabel htmlFor="theme-system" className="font-normal">
+              </Label>
+            </div>
+            <div className="flex items-center space-x-3 space-y-0"> {/* Use div instead of FormItem */}
+              <RadioGroupItem value="system" id="theme-system" />
+              <Label htmlFor="theme-system" className="font-normal"> {/* Use standard Label */}
                 Padrão do Sistema
-              </FormLabel>
-            </FormItem>
+              </Label>
+            </div>
           </RadioGroup>
         </CardContent>
       </Card>
