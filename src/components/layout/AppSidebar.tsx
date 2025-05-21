@@ -21,12 +21,14 @@ import {
   Settings,
   LogOut,
   LifeBuoy,
+  GalleryVerticalEnd,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const menuItems = [
   { href: "/", label: "Painel", icon: LayoutDashboard },
   { href: "/documents/create", label: "Criar Documento", icon: FilePlus2 },
+  { href: "/templates", label: "Modelos", icon: GalleryVerticalEnd },
   // { href: "/documents", label: "Todos os Documentos", icon: FileText }, // Future page
   // { href: "/sharing", label: "Compartilhamento", icon: Users }, // Future page
 ];
@@ -48,11 +50,11 @@ export function AppSidebar() {
             <SidebarMenuItem key={item.href}>
               <Link href={item.href} passHref legacyBehavior>
                 <SidebarMenuButton
-                  isActive={pathname === item.href}
+                  isActive={pathname === item.href || (item.href === "/templates" && pathname.startsWith("/templates"))}
                   tooltip={item.label}
                   className={cn(
                     "justify-start",
-                    pathname === item.href && "bg-sidebar-accent text-sidebar-accent-foreground"
+                    (pathname === item.href || (item.href === "/templates" && pathname.startsWith("/templates"))) && "bg-sidebar-accent text-sidebar-accent-foreground"
                   )}
                 >
                   <item.icon className="h-5 w-5" />

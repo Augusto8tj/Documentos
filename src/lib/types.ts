@@ -24,3 +24,12 @@ export interface DocumentMetadata {
   localFileIdentifier?: string; // User-defined path or identifier for local files
   sharedWith?: { email: string; permission: "view" | "edit" }[];
 }
+
+export interface TemplateMetadata {
+  id: string;
+  name: string;
+  description: string;
+  baseContentPreview: string; // Short preview or instruction
+  defaultDocumentType: DocumentType;
+  // In a real scenario, baseContent might be more complex (e.g., HTML, Markdown, or an ID to a GDoc template)
+}
