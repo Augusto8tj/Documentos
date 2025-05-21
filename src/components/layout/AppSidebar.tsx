@@ -67,17 +67,19 @@ export function AppSidebar() {
         <SidebarMenu>
           <SidebarMenuItem>
              <Link href="/settings" passHref legacyBehavior>
-              <SidebarMenuButton tooltip="Configurações" className="justify-start">
+              <SidebarMenuButton tooltip="Configurações" className="justify-start" isActive={pathname === "/settings"}>
                 <Settings className="h-5 w-5" />
                 <span>Configurações</span>
               </SidebarMenuButton>
             </Link>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton tooltip="Ajuda" className="justify-start">
-              <LifeBuoy className="h-5 w-5" />
-              <span>Ajuda</span>
-            </SidebarMenuButton>
+            <Link href="/help" passHref legacyBehavior>
+              <SidebarMenuButton tooltip="Ajuda" className="justify-start" isActive={pathname === "/help"}>
+                <LifeBuoy className="h-5 w-5" />
+                <span>Ajuda</span>
+              </SidebarMenuButton>
+            </Link>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
