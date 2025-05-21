@@ -29,7 +29,7 @@ import { createDocumentAction } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Info } from "lucide-react";
+import { Loader2, Info, ClipboardPaste } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 const formSchema = z.object({
@@ -42,6 +42,7 @@ const formSchema = z.object({
   sourceType: z.enum(["internal", "googleDocs", "local"], {
     errorMap: () => ({ message: "Por favor, selecione a fonte do documento." }),
   }).default("internal"),
+  googleDocsId: z.string().optional(), // Adicionado para consistência, validado abaixo
   localFileIdentifier: z.string().optional(),
   internalContent: z.string().optional(),
 }).refine(data => {
@@ -52,6 +53,14 @@ const formSchema = z.object({
 }, {
   message: "O identificador do arquivo local é obrigatório se a fonte for 'Arquivo Local'.",
   path: ["localFileIdentifier"],
+}).refine(data => {
+  if (data.sourceType === "googleDocs" && (!data.googleDocsId || data.googleDocsId.trim() === "")) {
+    return false;
+  }
+  return true;
+}, {
+  message: "O ID do Google Docs é obrigatório se a fonte for 'Google Docs'.",
+  path: ["googleDocsId"],
 });
 
 interface CreateDocumentFormProps {
@@ -69,6 +78,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
       name: initialTemplate ? `Documento Baseado em: ${initialTemplate.name}` : "",
       type: initialTemplate ? initialTemplate.defaultDocumentType : undefined,
       sourceType: "internal",
+      googleDocsId: "",
       localFileIdentifier: "",
       internalContent: initialTemplate?.baseContentPreview || "",
     },
@@ -82,6 +92,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
         name: `Documento Baseado em: ${initialTemplate.name}`,
         type: initialTemplate.defaultDocumentType,
         sourceType: currentSourceType || "internal",
+        googleDocsId: "",
         localFileIdentifier: "",
         internalContent: currentSourceType === "internal" ? initialTemplate.baseContentPreview : "",
       });
@@ -90,22 +101,63 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
         name: "",
         type: undefined, 
         sourceType: currentSourceType || "internal",
+        googleDocsId: "",
         localFileIdentifier: "",
         internalContent: "",
       });
     }
-  }, [initialTemplate, form, currentSourceType]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTemplate, form]); // currentSourceType was causing reset loops, form itself is enough for reset
 
 
   useEffect(() => {
     if (currentSourceType === "internal") {
-      if (initialTemplate && form.getValues("internalContent") !== initialTemplate.baseContentPreview ) { // Only set if it's different or to avoid loop
+      if (initialTemplate && form.getValues("internalContent") !== initialTemplate.baseContentPreview ) {
         form.setValue("internalContent", initialTemplate.baseContentPreview);
       }
     } else {
       form.setValue("internalContent", ""); 
     }
   }, [currentSourceType, initialTemplate, form]);
+
+  async function handlePasteFromClipboard(fieldName: "googleDocsId" | "localFileIdentifier") {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      toast({
+        title: "Função não suportada",
+        description: "Seu navegador não suporta colar da área de transferência desta forma.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        form.setValue(fieldName, text, { shouldValidate: true });
+        toast({
+          title: "Conteúdo Colado!",
+          description: `O conteúdo da área de transferência foi colado em ${fieldName === "googleDocsId" ? "ID do Google Docs" : "Identificador do Arquivo Local"}.`,
+        });
+      } else {
+        toast({
+          title: "Área de Transferência Vazia",
+          description: "Nenhum texto encontrado na área de transferência.",
+          variant: "default", // Less aggressive than destructive for empty clipboard
+        });
+      }
+    } catch (error) {
+      console.error("Falha ao colar da área de transferência:", error);
+      let description = "Não foi possível acessar a área de transferência. Verifique as permissões do navegador ou tente colar manualmente.";
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        description = "Permissão para acessar a área de transferência negada. Habilite nas configurações do seu navegador ou cole manualmente."
+      }
+      toast({
+        title: "Falha ao Colar",
+        description: description,
+        variant: "destructive",
+      });
+    }
+  }
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -114,6 +166,10 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
     formData.append("name", values.name);
     formData.append("type", values.type);
     formData.append("sourceType", values.sourceType);
+    
+    if (values.sourceType === "googleDocs" && values.googleDocsId) {
+      formData.append("googleDocsId", values.googleDocsId);
+    }
     if (values.sourceType === "local" && values.localFileIdentifier) {
       formData.append("localFileIdentifier", values.localFileIdentifier);
     }
@@ -227,7 +283,20 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                   <FormLabel>Fonte do Documento</FormLabel>
                   <FormControl>
                     <RadioGroup
-                      onValueChange={field.onChange}
+                      onValueChange={(value) => {
+                        field.onChange(value);
+                        // Limpar campos não relevantes ao mudar a fonte
+                        if (value === "internal") {
+                          form.setValue("googleDocsId", "");
+                          form.setValue("localFileIdentifier", "");
+                        } else if (value === "googleDocs") {
+                          form.setValue("localFileIdentifier", "");
+                          // internalContent é tratado pelo useEffect
+                        } else if (value === "local") {
+                          form.setValue("googleDocsId", "");
+                           // internalContent é tratado pelo useEffect
+                        }
+                      }}
                       defaultValue={field.value}
                       className="flex flex-col space-y-1 md:flex-row md:space-y-0 md:space-x-4"
                     >
@@ -244,7 +313,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                           <RadioGroupItem value="googleDocs" />
                         </FormControl>
                         <FormLabel className="font-normal">
-                          Google Docs (ID será adicionado depois)
+                          Google Docs
                         </FormLabel>
                       </FormItem>
                       <FormItem className="flex items-center space-x-3 space-y-0">
@@ -252,7 +321,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                           <RadioGroupItem value="local" />
                         </FormControl>
                         <FormLabel className="font-normal">
-                          Arquivo Local (referência)
+                          Arquivo Local
                         </FormLabel>
                       </FormItem>
                     </RadioGroup>
@@ -263,10 +332,45 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                        <span>Após criar, edite este documento no sistema para adicionar o ID do Google Doc que você criar. O conteúdo base do modelo serve de guia.</span>
                     </FormDescription>
                   )}
+                   {currentSourceType === "googleDocs" && !initialTemplate && (
+                     <FormDescription className="text-xs flex items-start gap-1 pt-1">
+                       <Info className="h-3 w-3 mt-0.5 text-primary flex-shrink-0" />
+                       <span>Você precisará informar o ID do documento do Google Docs.</span>
+                    </FormDescription>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
             />
+            {currentSourceType === "googleDocs" && (
+              <FormField
+                control={form.control}
+                name="googleDocsId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>ID do Google Docs</FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormControl>
+                        <Input placeholder="Cole ou digite o ID do Google Doc" {...field} />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handlePasteFromClipboard("googleDocsId")}
+                        aria-label="Colar ID do Google Docs da área de transferência"
+                      >
+                        <ClipboardPaste className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <FormDescription>
+                      É o ID encontrado na URL do seu Google Doc (ex: .../document/d/ID_DO_DOCUMENTO/edit).
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             {currentSourceType === "local" && (
               <FormField
                 control={form.control}
@@ -274,9 +378,20 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Identificador do Arquivo Local</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., C:\\Documentos\\ProjetoX.docx ou Servidor\\Oficios\\2024\\..." {...field} />
-                    </FormControl>
+                     <div className="flex items-center gap-2">
+                        <FormControl>
+                        <Input placeholder="Cole ou digite o caminho/referência" {...field} />
+                        </FormControl>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="icon"
+                            onClick={() => handlePasteFromClipboard("localFileIdentifier")}
+                            aria-label="Colar identificador da área de transferência"
+                        >
+                            <ClipboardPaste className="h-4 w-4" />
+                        </Button>
+                    </div>
                     <FormDescription>
                       Insira o caminho ou referência para o arquivo local. {initialTemplate && "O conteúdo base do modelo serve como guia para seu arquivo."}
                     </FormDescription>

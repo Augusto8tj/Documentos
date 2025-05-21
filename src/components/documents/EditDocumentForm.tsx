@@ -29,7 +29,7 @@ import { updateDocumentAction } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2 } from "lucide-react";
+import { Loader2, ClipboardPaste } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 const formSchema = z.object({
@@ -86,6 +86,45 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
   });
 
   const currentSourceType = form.watch("sourceType");
+
+  async function handlePasteFromClipboard(fieldName: "googleDocsId" | "localFileIdentifier") {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+      toast({
+        title: "Função não suportada",
+        description: "Seu navegador não suporta colar da área de transferência desta forma.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        form.setValue(fieldName, text, { shouldValidate: true });
+        toast({
+          title: "Conteúdo Colado!",
+          description: `O conteúdo da área de transferência foi colado em ${fieldName === "googleDocsId" ? "ID do Google Docs" : "Identificador do Arquivo Local"}.`,
+        });
+      } else {
+        toast({
+          title: "Área de Transferência Vazia",
+          description: "Nenhum texto encontrado na área de transferência.",
+          variant: "default",
+        });
+      }
+    } catch (error) {
+      console.error("Falha ao colar da área de transferência:", error);
+       let description = "Não foi possível acessar a área de transferência. Verifique as permissões do navegador ou tente colar manualmente.";
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        description = "Permissão para acessar a área de transferência negada. Habilite nas configurações do seu navegador ou cole manually."
+      }
+      toast({
+        title: "Falha ao Colar",
+        description: description,
+        variant: "destructive",
+      });
+    }
+  }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
@@ -234,9 +273,20 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>ID do Google Docs</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Insira o ID do documento do Google Docs" {...field} />
-                    </FormControl>
+                    <div className="flex items-center gap-2">
+                      <FormControl>
+                        <Input placeholder="Cole ou digite o ID do Google Doc" {...field} />
+                      </FormControl>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handlePasteFromClipboard("googleDocsId")}
+                        aria-label="Colar ID do Google Docs da área de transferência"
+                      >
+                        <ClipboardPaste className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <FormDescription>
                       O ID encontrado na URL do seu Google Doc.
                     </FormDescription>
@@ -252,9 +302,20 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Identificador do Arquivo Local</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., C:\\Documentos\\ProjetoX.docx" {...field} />
-                    </FormControl>
+                    <div className="flex items-center gap-2">
+                      <FormControl>
+                        <Input placeholder="Cole ou digite o caminho/referência" {...field} />
+                      </FormControl>
+                      <Button
+                          type="button"
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handlePasteFromClipboard("localFileIdentifier")}
+                          aria-label="Colar identificador da área de transferência"
+                      >
+                          <ClipboardPaste className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <FormDescription>
                      Insira o caminho ou referência para o arquivo local.
                     </FormDescription>
