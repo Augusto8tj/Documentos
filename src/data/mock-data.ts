@@ -1,6 +1,6 @@
 
 import type { DocumentMetadata } from "@/lib/types";
-import { DocumentType } from "@/lib/types";
+import { DocumentType, DocumentDepartment } from "@/lib/types";
 
 export const mockDocuments: DocumentMetadata[] = [
   {
@@ -15,6 +15,7 @@ export const mockDocuments: DocumentMetadata[] = [
     sharedWith: [{ email: "colleague1@example.com", permission: "edit" }],
     status: "Published",
     author: { name: "Usuário Exemplo", email: "usuario@exemplo.com" },
+    department: DocumentDepartment.TI,
   },
   {
     id: "2",
@@ -27,6 +28,7 @@ export const mockDocuments: DocumentMetadata[] = [
     internalContent: "Este é o conteúdo do memorando sobre a reunião semanal.\n\nTópicos a serem discutidos:\n1. Revisão das metas do último sprint.\n2. Planejamento para o próximo sprint.\n3. Feedback dos clientes.",
     status: "Draft",
     author: { name: "Ana Silva", email: "ana.silva@example.com" },
+    department: DocumentDepartment.ADMINISTRACAO,
   },
   {
     id: "3",
@@ -42,6 +44,7 @@ export const mockDocuments: DocumentMetadata[] = [
       { email: "hr@example.com", permission: "view" },
     ],
     status: "Published",
+    department: DocumentDepartment.RECURSOS_HUMANOS,
   },
   {
     id: "4",
@@ -54,6 +57,7 @@ export const mockDocuments: DocumentMetadata[] = [
     localFileIdentifier: "C:\\Reuniões\\Diretoria\\ATA-2024-002.pdf",
     status: "Published",
     author: { name: "Carlos Pereira", email: "carlos.p@example.com" },
+    department: DocumentDepartment.GABINETE,
   },
   {
     id: "5",
@@ -65,6 +69,7 @@ export const mockDocuments: DocumentMetadata[] = [
     sourceType: "internal",
     internalContent: "DECRETO Nº DEC-2024-010\n\nConsiderando a data comemorativa de Corpus Christi,\n\nArt. 1º Fica decretado ponto facultativo nas repartições públicas municipais no dia XX de Mês de XXXX.\nArt. 2º Este decreto entra em vigor na data de sua publicação.",
     status: "Published",
+    department: DocumentDepartment.GABINETE,
   },
 ];
 

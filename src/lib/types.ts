@@ -8,6 +8,17 @@ export enum DocumentType {
   OUTROS = "Outros",
 }
 
+export enum DocumentDepartment {
+  ADMINISTRACAO = "Administração",
+  GABINETE = "Gabinete",
+  RECURSOS_HUMANOS = "Recursos Humanos",
+  FINANCEIRO = "Financeiro",
+  JURIDICO = "Jurídico",
+  TI = "Tecnologia da Informação",
+  COMUNICACAO = "Comunicação",
+  OUTROS = "Outros",
+}
+
 export type DocumentSourceType = "internal" | "googleDocs" | "local";
 
 export interface DocumentMetadata {
@@ -24,7 +35,8 @@ export interface DocumentMetadata {
   localFileIdentifier?: string; // User-defined path or identifier for local files
   internalContent?: string; // Conteúdo para documentos internos
   sharedWith?: { email: string; permission: "view" | "edit" }[];
-  author?: { name: string; email: string }; // Novo campo para o autor
+  author?: { name: string; email: string };
+  department?: DocumentDepartment; // Novo campo para departamento/local
 }
 
 export interface TemplateMetadata {

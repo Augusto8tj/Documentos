@@ -24,12 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DocumentType, type DocumentMetadata, type DocumentSourceType } from "@/lib/types";
+import { DocumentType, type DocumentMetadata, DocumentDepartment } from "@/lib/types";
 import { updateDocumentAction } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, ClipboardPaste } from "lucide-react";
+import { Loader2, ClipboardPaste, Building } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 const formSchema = z.object({
@@ -39,6 +39,7 @@ const formSchema = z.object({
   type: z.nativeEnum(DocumentType, {
     errorMap: () => ({ message: "Por favor, selecione um tipo de documento." }),
   }),
+  department: z.nativeEnum(DocumentDepartment).optional(),
   sourceType: z.enum(["internal", "googleDocs", "local"],{
     errorMap: () => ({ message: "Por favor, selecione a fonte do documento." }),
   }),
@@ -78,6 +79,7 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
     defaultValues: {
       name: existingDocument.name,
       type: existingDocument.type,
+      department: existingDocument.department || undefined,
       sourceType: existingDocument.sourceType,
       googleDocsId: existingDocument.googleDocsId || "",
       localFileIdentifier: existingDocument.localFileIdentifier || "",
@@ -132,6 +134,9 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
     formData.append("id", existingDocument.id);
     formData.append("name", values.name);
     formData.append("type", values.type);
+    if (values.department) {
+      formData.append("department", values.department);
+    }
     formData.append("sourceType", values.sourceType);
 
     if (values.sourceType === "googleDocs" && values.googleDocsId) {
@@ -188,30 +193,57 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipo de Documento</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um tipo de documento" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.values(DocumentType).map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Documento</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um tipo" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.values(DocumentType).map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+               <FormField
+                control={form.control}
+                name="department"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Departamento/Local</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <Building className="mr-2 h-4 w-4 text-muted-foreground" />
+                          <SelectValue placeholder="Selecione um departamento" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.values(DocumentDepartment).map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="sourceType"
@@ -358,5 +390,3 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
     </Card>
   );
 }
-
-    

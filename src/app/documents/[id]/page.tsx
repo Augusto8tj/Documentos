@@ -2,7 +2,7 @@
 import { getDocumentById } from "@/data/mock-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { ArrowLeft, ExternalLink, Edit3, Folder, FileArchive, User } from "lucide-react"; // Adicionado User
+import { ArrowLeft, ExternalLink, Edit3, Folder, FileArchive, User, Building } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { format } from "date-fns";
@@ -77,6 +77,14 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
               {document.status === "Published" ? "Publicado" : document.status === "Draft" ? "Rascunho" : document.status}
             </p>
           </div>
+          {document.department && (
+            <div>
+              <h3 className="font-semibold text-foreground flex items-center">
+                <Building className="mr-2 h-4 w-4 text-muted-foreground" /> Departamento/Local:
+              </h3>
+              <p className="text-muted-foreground ml-6">{document.department}</p>
+            </div>
+          )}
            <div>
             <h3 className="font-semibold text-foreground">Fonte do Documento:</h3>
             <p className="text-muted-foreground flex items-center">

@@ -24,12 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DocumentType, type DocumentSourceType, type TemplateMetadata } from "@/lib/types";
+import { DocumentType, type TemplateMetadata, DocumentDepartment } from "@/lib/types";
 import { createDocumentAction } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Info, ClipboardPaste } from "lucide-react";
+import { Loader2, Info, ClipboardPaste, Building } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 
 const localStorageProfileKey = "docflow-profile"; // Key for profile in localStorage
@@ -41,6 +41,7 @@ const formSchema = z.object({
   type: z.nativeEnum(DocumentType, {
     errorMap: () => ({ message: "Por favor, selecione um tipo de documento." }),
   }),
+  department: z.nativeEnum(DocumentDepartment).optional(),
   sourceType: z.enum(["internal", "googleDocs", "local"], {
     errorMap: () => ({ message: "Por favor, selecione a fonte do documento." }),
   }).default("internal"),
@@ -80,6 +81,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
     defaultValues: {
       name: initialTemplate ? `Documento Baseado em: ${initialTemplate.name}` : "",
       type: initialTemplate ? initialTemplate.defaultDocumentType : undefined,
+      department: undefined, // Default to no department selected
       sourceType: "internal",
       googleDocsId: "",
       localFileIdentifier: "",
@@ -94,7 +96,8 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
       form.reset({
         name: `Documento Baseado em: ${initialTemplate.name}`,
         type: initialTemplate.defaultDocumentType,
-        sourceType: currentSourceType || "internal", // Preserve if changed, else default to internal
+        department: form.getValues("department"), // Preserve if changed
+        sourceType: currentSourceType || "internal", 
         googleDocsId: "",
         localFileIdentifier: "",
         internalContent: (currentSourceType === "internal" || (!currentSourceType && "internal" === "internal")) 
@@ -104,7 +107,8 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
     } else {
        form.reset({
         name: "",
-        type: undefined, 
+        type: undefined,
+        department: form.getValues("department"), // Preserve if changed
         sourceType: currentSourceType || "internal",
         googleDocsId: "",
         localFileIdentifier: "",
@@ -118,7 +122,6 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
   useEffect(() => {
     if (currentSourceType === "internal") {
       if (initialTemplate && form.getValues("internalContent") !== initialTemplate.baseContentPreview ) {
-        // Only set from template if it's not already explicitly set by the user or if it differs
         if(!form.getValues("internalContent") || form.getValues("internalContent") === ""){
             form.setValue("internalContent", initialTemplate.baseContentPreview);
         }
@@ -173,6 +176,9 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
     const formData = new FormData();
     formData.append("name", values.name);
     formData.append("type", values.type);
+    if (values.department) {
+      formData.append("department", values.department);
+    }
     formData.append("sourceType", values.sourceType);
     
     if (values.sourceType === "googleDocs" && values.googleDocsId) {
@@ -189,7 +195,6 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
       formData.append("templateContentPreview", initialTemplate.baseContentPreview);
     }
 
-    // Get author from localStorage
     const storedProfile = localStorage.getItem(localStorageProfileKey);
     if (storedProfile) {
       try {
@@ -272,30 +277,57 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Tipo de Documento</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um tipo de documento" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.values(DocumentType).map((type) => (
-                        <SelectItem key={type} value={type}>
-                          {type}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de Documento</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um tipo" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.values(DocumentType).map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="department"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Departamento/Local</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <Building className="mr-2 h-4 w-4 text-muted-foreground" />
+                          <SelectValue placeholder="Selecione um departamento" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.values(DocumentDepartment).map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="sourceType"

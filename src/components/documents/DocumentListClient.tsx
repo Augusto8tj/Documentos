@@ -28,9 +28,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, ExternalLink, Users, CalendarIcon, Filter, Folder, FileArchive, CheckCircle2, FileEdit, Archive, User } from "lucide-react";
+import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, ExternalLink, Users, CalendarIcon, Filter, Folder, FileArchive, CheckCircle2, FileEdit, Archive, User, Building } from "lucide-react";
 import type { DocumentMetadata, DocumentSourceType } from "@/lib/types";
-import { DocumentType } from "@/lib/types";
+import { DocumentType, DocumentDepartment } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
 import { 
   format, 
@@ -73,6 +73,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const [filterSearchTerm, setFilterSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<DocumentType | "all">("all");
   const [filterStatus, setFilterStatus] = useState<DocumentMetadata["status"] | "all">("all");
+  const [filterDepartment, setFilterDepartment] = useState<DocumentDepartment | "all">("all");
   
   const [filterCreatedAtPeriod, setFilterCreatedAtPeriod] = useState<DateFilterPeriod>("all");
   const [filterCreatedAtValue, setFilterCreatedAtValue] = useState<Date | undefined>(undefined);
@@ -98,6 +99,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                               doc.number.toLowerCase().includes(filterSearchTerm.toLowerCase());
       const typeMatch = filterType === "all" || doc.type === filterType;
       const statusMatch = filterStatus === "all" || doc.status === filterStatus;
+      const departmentMatch = filterDepartment === "all" || doc.department === filterDepartment;
       const sourceTypeMatch = filterSourceType === "all" || doc.sourceType === filterSourceType;
       
       let createdAtMatch = true;
@@ -134,12 +136,12 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
       const authorEmailMatch = filterAuthorEmail === "" ||
                                (doc.author && doc.author.email.toLowerCase().includes(filterAuthorEmail.toLowerCase()));
       
-      return searchTermMatch && typeMatch && statusMatch && createdAtMatch && updatedAtMatch && sourceTypeMatch && sharedEmailMatch && authorEmailMatch;
+      return searchTermMatch && typeMatch && statusMatch && departmentMatch && createdAtMatch && updatedAtMatch && sourceTypeMatch && sharedEmailMatch && authorEmailMatch;
     });
     
     setProcessedDocs(filtered);
 
-  }, [initialDocuments, filterSearchTerm, filterType, filterStatus, 
+  }, [initialDocuments, filterSearchTerm, filterType, filterStatus, filterDepartment,
       filterCreatedAtPeriod, filterCreatedAtValue, 
       filterUpdatedAtPeriod, filterUpdatedAtValue,
       filterSourceType, filterSharedEmail, filterAuthorEmail]);
@@ -151,16 +153,14 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
   const handleDelete = (docId: string) => {
     console.log("Excluir documento:", docId);
-    // Here you would typically call an action to delete the document from the backend
-    // For now, we'll just filter it out from the local state for demonstration
     setProcessedDocs(prevDocs => prevDocs ? prevDocs.filter(doc => doc.id !== docId) : null);
-    // Potentially show a toast message
   };
   
   const handleClearFilters = () => {
     setFilterSearchTerm("");
     setFilterType("all");
     setFilterStatus("all");
+    setFilterDepartment("all");
     setFilterCreatedAtPeriod("all");
     setFilterCreatedAtValue(undefined);
     setFilterUpdatedAtPeriod("all");
@@ -172,12 +172,12 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
   const handleCreatedAtPeriodChange = (newPeriod: DateFilterPeriod) => {
     setFilterCreatedAtPeriod(newPeriod);
-    setFilterCreatedAtValue(undefined); // Reset date value when period changes
+    setFilterCreatedAtValue(undefined); 
   };
 
   const handleUpdatedAtPeriodChange = (newPeriod: DateFilterPeriod) => {
     setFilterUpdatedAtPeriod(newPeriod);
-    setFilterUpdatedAtValue(undefined); // Reset date value when period changes
+    setFilterUpdatedAtValue(undefined); 
   };
   
   const formatFilterDateButtonText = (period: DateFilterPeriod, value: Date | undefined): string => {
@@ -207,7 +207,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
         <div className="animate-pulse">
           <div className="h-8 bg-muted rounded w-1/4 mb-4"></div>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6 p-4 items-end">
-            {[...Array(8)].map((_, i) => ( 
+            {[...Array(9)].map((_, i) => ( 
               <div key={i} className="space-y-1">
                 <div className="h-4 bg-muted rounded w-1/3"></div> 
                 <div className="h-10 bg-muted rounded"></div> 
@@ -241,11 +241,11 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const getStatusBadgeVariant = (status: DocumentMetadata["status"]) => {
     switch (status) {
       case "Published":
-        return "default"; // Uses primary color by default for 'default' variant of Badge
+        return "default"; 
       case "Draft":
         return "secondary";
       case "Archived":
-        return "outline"; // Or choose another suitable variant
+        return "outline"; 
       default:
         return "secondary";
     }
@@ -254,11 +254,11 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const getStatusBadgeClass = (status: DocumentMetadata["status"]) => {
      switch (status) {
       case "Published":
-        return "bg-accent text-accent-foreground"; // Greenish accent
+        return "bg-accent text-accent-foreground"; 
       case "Draft":
-        return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50"; // Custom if needed, or rely on secondary
+        return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50"; 
       case "Archived":
-         return "bg-gray-500/20 text-gray-700 border-gray-500/50"; // Custom if needed, or rely on outline
+         return "bg-gray-500/20 text-gray-700 border-gray-500/50"; 
       default:
         return "";
     }
@@ -270,10 +270,10 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
       <Accordion type="single" collapsible className="mb-6 bg-accent/10 dark:bg-accent/20 border border-accent/30 rounded-lg shadow-md">
         <AccordionItem value="item-1" className="border-b-0">
           <div className="flex items-center justify-between p-4">
-            <AccordionTrigger className="flex-grow text-left">
+            <AccordionTrigger className="flex-grow text-left text-xl font-bold text-primary hover:no-underline p-0">
               <div className="flex items-center gap-2">
                 <Filter className="h-6 w-6 text-primary" />
-                <h3 className="text-xl font-bold text-primary">Filtros</h3>
+                Filtros
               </div>
             </AccordionTrigger>
             <Button variant="ghost" onClick={handleClearFilters} size="sm" className="ml-4 flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent/30">
@@ -318,6 +318,20 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                     <SelectItem value="Draft">Rascunho</SelectItem>
                     <SelectItem value="Published">Publicado</SelectItem>
                     <SelectItem value="Archived">Arquivado</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="filterDepartment" className="text-sm font-medium text-muted-foreground db-block mb-1">Departamento</Label>
+                <Select value={filterDepartment} onValueChange={(value) => setFilterDepartment(value as DocumentDepartment | "all")}>
+                  <SelectTrigger id="filterDepartment" className="mt-1">
+                    <SelectValue placeholder="Todos os departamentos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os departamentos</SelectItem>
+                    {Object.values(DocumentDepartment).map((dept) => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -470,6 +484,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
               <TableHead className="min-w-[250px]">Nome</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Número</TableHead>
+              <TableHead>Departamento</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Última Modificação</TableHead>
               <TableHead className="text-right">Ações</TableHead>
@@ -478,7 +493,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
           <TableBody>
             {currentDocuments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                   Nenhum documento encontrado com os filtros aplicados.
                 </TableCell>
               </TableRow>
@@ -519,6 +534,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                   </TableCell>
                   <TableCell className="text-muted-foreground">{doc.type}</TableCell>
                   <TableCell className="text-muted-foreground">{doc.number}</TableCell>
+                  <TableCell className="text-muted-foreground">{doc.department || "N/A"}</TableCell>
                   <TableCell>
                   <Badge 
                     variant={getStatusBadgeVariant(doc.status)} 
@@ -579,5 +595,3 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     </>
   );
 }
-
-    

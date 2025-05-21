@@ -2,7 +2,7 @@
 "use server";
 
 import { z } from "zod";
-import { DocumentType, type DocumentMetadata, type DocumentSourceType } from "./types";
+import { DocumentType, type DocumentMetadata, type DocumentSourceType, DocumentDepartment } from "./types";
 import { 
   addDocument as dbAddDocument, 
   updateDocumentSharing as dbUpdateDocumentSharing, 
@@ -14,6 +14,7 @@ import { revalidatePath } from "next/cache";
 const CreateDocumentSchema = z.object({
   name: z.string().min(3, "O nome do documento deve ter pelo menos 3 caracteres."),
   type: z.nativeEnum(DocumentType),
+  department: z.nativeEnum(DocumentDepartment).optional(),
   sourceType: z.enum(["internal", "googleDocs", "local"]),
   googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
@@ -40,9 +41,10 @@ const CreateDocumentSchema = z.object({
 
 export async function createDocumentAction(formData: FormData) {
   const rawFormData = {
-    name: formData.get("name"),
-    type: formData.get("type"),
-    sourceType: formData.get("sourceType"),
+    name: formData.get("name") || undefined,
+    type: formData.get("type") || undefined,
+    department: formData.get("department") || undefined,
+    sourceType: formData.get("sourceType") || undefined,
     googleDocsId: formData.get("googleDocsId") || undefined,
     localFileIdentifier: formData.get("localFileIdentifier") || undefined,
     internalContent: formData.get("internalContent") || undefined,
@@ -60,6 +62,7 @@ export async function createDocumentAction(formData: FormData) {
   const { 
     name, 
     type, 
+    department,
     sourceType, 
     googleDocsId, 
     localFileIdentifier, 
@@ -77,6 +80,7 @@ export async function createDocumentAction(formData: FormData) {
     id: crypto.randomUUID(),
     name,
     type,
+    department,
     number: newNumber,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -144,6 +148,7 @@ const EditDocumentFormSchema = z.object({
   type: z.nativeEnum(DocumentType, {
     errorMap: () => ({ message: "Por favor, selecione um tipo de documento válido." }),
   }),
+  department: z.nativeEnum(DocumentDepartment).optional(),
   sourceType: z.enum(["internal", "googleDocs", "local"]),
   googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
@@ -168,10 +173,11 @@ const EditDocumentFormSchema = z.object({
 
 export async function updateDocumentAction(formData: FormData) {
   const rawFormData = {
-    id: formData.get("id"),
-    name: formData.get("name"),
-    type: formData.get("type"),
-    sourceType: formData.get("sourceType"),
+    id: formData.get("id") || undefined,
+    name: formData.get("name") || undefined,
+    type: formData.get("type") || undefined,
+    department: formData.get("department") || undefined,
+    sourceType: formData.get("sourceType") || undefined,
     googleDocsId: formData.get("googleDocsId") || undefined,
     localFileIdentifier: formData.get("localFileIdentifier") || undefined,
     internalContent: formData.get("internalContent") || undefined,
@@ -185,9 +191,9 @@ export async function updateDocumentAction(formData: FormData) {
     };
   }
 
-  const { id, name, type, sourceType, googleDocsId, localFileIdentifier, internalContent } = validatedFields.data;
+  const { id, name, type, department, sourceType, googleDocsId, localFileIdentifier, internalContent } = validatedFields.data;
 
-  const updates: Partial<DocumentMetadata> = { name, type, sourceType: sourceType as DocumentSourceType };
+  const updates: Partial<DocumentMetadata> = { name, type, department, sourceType: sourceType as DocumentSourceType };
 
   if (sourceType === "googleDocs" && googleDocsId) {
     updates.googleDocsId = googleDocsId;
