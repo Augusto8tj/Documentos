@@ -54,7 +54,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-2xl md:text-3xl">{document.name}</CardTitle>
-              <CardDescription 
+              <CardDescription
                 className="mt-2 text-lg font-semibold text-foreground border border-border rounded-md p-3 bg-muted/20 shadow-sm"
               >
                 <span>{document.type} - Número: </span>
@@ -80,7 +80,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
            <div>
             <h3 className="font-semibold text-foreground">Fonte do Documento:</h3>
             <p className="text-muted-foreground flex items-center">
-              {document.sourceType === "local" ? <Folder className="mr-2 h-4 w-4 text-primary" /> : 
+              {document.sourceType === "local" ? <Folder className="mr-2 h-4 w-4 text-primary" /> :
                document.sourceType === "googleDocs" ? <ExternalLink className="mr-2 h-4 w-4 text-primary" /> :
                <FileArchive className="mr-2 h-4 w-4 text-primary" />
               }
@@ -114,16 +114,20 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
               Este documento está marcado como Google Docs, mas nenhum ID foi fornecido. Edite para adicionar.
             </p>
           )}
-          {document.author && (
-             <div>
-              <h3 className="font-semibold text-foreground flex items-center">
-                <User className="mr-2 h-4 w-4 text-muted-foreground" /> Autor:
-              </h3>
+          <div>
+            <h3 className="font-semibold text-foreground flex items-center">
+              <User className="mr-2 h-4 w-4 text-muted-foreground" /> Autor:
+            </h3>
+            {document.author ? (
               <p className="text-muted-foreground ml-6">
                 {document.author.name} ({document.author.email})
               </p>
-            </div>
-          )}
+            ) : (
+              <p className="text-muted-foreground ml-6 italic">
+                Autor não informado
+              </p>
+            )}
+          </div>
           <div>
             <h3 className="font-semibold text-foreground">Criado em:</h3>
             <p className="text-muted-foreground">{format(new Date(document.createdAt), "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })}</p>
