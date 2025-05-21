@@ -54,8 +54,11 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-2xl md:text-3xl">{document.name}</CardTitle>
-              <CardDescription className="mt-1 text-lg font-semibold text-foreground">
-                {document.type} - Número: {document.number}
+              <CardDescription 
+                className="mt-2 text-lg font-semibold text-foreground border border-border rounded-md p-3 bg-muted/20 shadow-sm"
+              >
+                <span>{document.type} - Número: </span>
+                <span className="text-primary font-bold">{document.number}</span>
               </CardDescription>
             </div>
             {document.sourceType === "googleDocs" && document.googleDocsId && (
