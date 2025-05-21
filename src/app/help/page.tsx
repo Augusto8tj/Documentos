@@ -1,7 +1,7 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { ListChecks, Search, Users, FilePlus2, Edit, Eye, Share2, Trash2, Filter, FolderOpen, ExternalLink, Archive, LayoutDashboard, Settings, LifeBuoy } from "lucide-react";
+import { ListChecks, Search, Users, FilePlus2, Edit, Eye, Share2, Trash2, Filter, FolderOpen, ExternalLink, Archive, LayoutDashboard, Settings, LifeBuoy, MoreVertical } from "lucide-react";
 
 export default function HelpPage() {
   return (
