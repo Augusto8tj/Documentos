@@ -54,7 +54,7 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
           <div className="flex justify-between items-start">
             <div>
               <CardTitle className="text-2xl md:text-3xl">{document.name}</CardTitle>
-              <CardDescription className="mt-1">
+              <CardDescription className="mt-1 text-lg font-semibold text-foreground">
                 {document.type} - Número: {document.number}
               </CardDescription>
             </div>
