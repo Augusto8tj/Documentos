@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/sidebar";
 import { AppHeader } from "@/components/layout/AppHeader";
 import { AppSidebar } from "@/components/layout/AppSidebar";
+import { ThemeManager } from "@/components/layout/ThemeManager"; // Import the new component
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -35,6 +36,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
+        <ThemeManager /> {/* Add ThemeManager here */}
         <SidebarProvider defaultOpen={true}>
           <AppSidebar />
           <div className="flex flex-col flex-1 min-h-screen">
