@@ -15,26 +15,37 @@ const CreateDocumentSchema = z.object({
   name: z.string().min(3, "O nome do documento deve ter pelo menos 3 caracteres."),
   type: z.nativeEnum(DocumentType),
   sourceType: z.enum(["internal", "googleDocs", "local"]),
+  googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
   internalContent: z.string().optional(),
 }).refine(data => {
-  if (data.sourceType === "local" && !data.localFileIdentifier) {
+  if (data.sourceType === "local" && (!data.localFileIdentifier || data.localFileIdentifier.trim() === "")) {
     return false;
   }
   return true;
 }, {
   message: "O identificador do arquivo local é obrigatório se a fonte for 'Arquivo Local'.",
   path: ["localFileIdentifier"],
+}).refine(data => {
+  if (data.sourceType === "googleDocs" && (!data.googleDocsId || data.googleDocsId.trim() === "")) {
+    return false;
+  }
+  return true;
+}, {
+  message: "O ID do Google Docs é obrigatório se a fonte for 'Google Docs'.",
+  path: ["googleDocsId"],
 });
 
 export async function createDocumentAction(formData: FormData) {
-  const validatedFields = CreateDocumentSchema.safeParse({
+  const rawFormData = {
     name: formData.get("name"),
     type: formData.get("type"),
     sourceType: formData.get("sourceType"),
-    localFileIdentifier: formData.get("localFileIdentifier"),
-    internalContent: formData.get("internalContent"),
-  });
+    googleDocsId: formData.get("googleDocsId") || undefined,
+    localFileIdentifier: formData.get("localFileIdentifier") || undefined,
+    internalContent: formData.get("internalContent") || undefined,
+  };
+  const validatedFields = CreateDocumentSchema.safeParse(rawFormData);
 
   if (!validatedFields.success) {
     return {
@@ -42,7 +53,7 @@ export async function createDocumentAction(formData: FormData) {
     };
   }
 
-  const { name, type, sourceType, localFileIdentifier, internalContent } = validatedFields.data;
+  const { name, type, sourceType, googleDocsId, localFileIdentifier, internalContent } = validatedFields.data;
 
   const typePrefix = type.substring(0, 3).toUpperCase();
   const countForType = userDocuments.filter(doc => doc.type === type).length + 1;
@@ -62,7 +73,7 @@ export async function createDocumentAction(formData: FormData) {
   };
 
   if (sourceType === "googleDocs") {
-    newDocument.googleDocsId = `simulatedGDocId-${crypto.randomUUID().substring(0,8)}`;
+    newDocument.googleDocsId = googleDocsId;
   } else if (sourceType === "local" && localFileIdentifier) {
     newDocument.localFileIdentifier = localFileIdentifier;
   } else if (sourceType === "internal") {
@@ -137,15 +148,17 @@ const EditDocumentFormSchema = z.object({
 });
 
 export async function updateDocumentAction(formData: FormData) {
-  const validatedFields = EditDocumentFormSchema.safeParse({
+  const rawFormData = {
     id: formData.get("id"),
     name: formData.get("name"),
     type: formData.get("type"),
     sourceType: formData.get("sourceType"),
-    googleDocsId: formData.get("googleDocsId"),
-    localFileIdentifier: formData.get("localFileIdentifier"),
-    internalContent: formData.get("internalContent"),
-  });
+    googleDocsId: formData.get("googleDocsId") || undefined,
+    localFileIdentifier: formData.get("localFileIdentifier") || undefined,
+    internalContent: formData.get("internalContent") || undefined,
+  };
+  const validatedFields = EditDocumentFormSchema.safeParse(rawFormData);
+
 
   if (!validatedFields.success) {
     return {
@@ -185,3 +198,4 @@ export async function updateDocumentAction(formData: FormData) {
 
   return { success: true, documentId: id };
 }
+
