@@ -119,6 +119,7 @@ export const updateDocumentMetadata = (
 export const getDocuments = async (): Promise<DocumentMetadata[]> => {
   // Simulate API delay
   await new Promise(resolve => setTimeout(resolve, 500));
+  // Return a sorted copy (most recent first)
   return [...userDocuments].sort((a,b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 };
 
@@ -126,3 +127,5 @@ export const getDocumentById = async (id: string): Promise<DocumentMetadata | un
   await new Promise(resolve => setTimeout(resolve, 200));
   return userDocuments.find(doc => doc.id === id);
 };
+
+    

@@ -42,7 +42,7 @@ const formSchema = z.object({
   sourceType: z.enum(["internal", "googleDocs", "local"], {
     errorMap: () => ({ message: "Por favor, selecione a fonte do documento." }),
   }).default("internal"),
-  googleDocsId: z.string().optional(), // Adicionado para consistência, validado abaixo
+  googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
   internalContent: z.string().optional(),
 }).refine(data => {
@@ -107,7 +107,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
       });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTemplate, form]); // currentSourceType was causing reset loops, form itself is enough for reset
+  }, [initialTemplate, form]);
 
 
   useEffect(() => {
@@ -142,7 +142,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
         toast({
           title: "Área de Transferência Vazia",
           description: "Nenhum texto encontrado na área de transferência.",
-          variant: "default", // Less aggressive than destructive for empty clipboard
+          variant: "default", 
         });
       }
     } catch (error) {
@@ -185,8 +185,8 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
 
     setIsSubmitting(false);
 
-    if (result.success) {
-      let description = `"${values.name}" foi criado com sucesso.`;
+    if (result.success && result.documentId) {
+      let description = `"${values.name}" foi criado. Você será redirecionado para a página de detalhes.`;
       if (values.sourceType === "googleDocs" && initialTemplate) {
         description += ` Lembre-se de criar o documento no Google Docs usando o conteúdo base do modelo e adicionar o ID do Google Doc editando este documento.`;
       } else if (values.sourceType === "local" && initialTemplate) {
@@ -195,13 +195,12 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
         description += ` O conteúdo base do modelo foi pré-preenchido para edição.`;
       }
 
-
       toast({
         title: "Documento Criado",
         description: description,
         duration: 7000, 
       });
-      router.push("/"); 
+      router.push(`/documents/${result.documentId}`); 
     } else {
       toast({
         title: "Erro ao Criar Documento",
@@ -285,16 +284,13 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                     <RadioGroup
                       onValueChange={(value) => {
                         field.onChange(value);
-                        // Limpar campos não relevantes ao mudar a fonte
                         if (value === "internal") {
                           form.setValue("googleDocsId", "");
                           form.setValue("localFileIdentifier", "");
                         } else if (value === "googleDocs") {
                           form.setValue("localFileIdentifier", "");
-                          // internalContent é tratado pelo useEffect
                         } else if (value === "local") {
                           form.setValue("googleDocsId", "");
-                           // internalContent é tratado pelo useEffect
                         }
                       }}
                       defaultValue={field.value}
@@ -436,3 +432,5 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
     </Card>
   );
 }
+
+    
