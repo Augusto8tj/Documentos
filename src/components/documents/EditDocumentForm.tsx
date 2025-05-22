@@ -39,10 +39,10 @@ const localStorageDocumentTypesKey = "docflow-document-types";
 const localStorageDepartmentsKey = "docflow-document-departments";
 
 const createEditFormSchema = (
-  availableTypes: DocumentTypeValue[], 
+  availableTypes: DocumentTypeValue[],
   availableDepartments: DocumentDepartmentValue[],
-  canEditDepartment: boolean, // To know if department validation should use all available or just the existing one
-  existingDepartment?: DocumentDepartmentValue // The document's current department if not editable
+  canEditDepartment: boolean,
+  existingDepartmentValue?: DocumentDepartmentValue 
 ) => z.object({
   name: z.string().min(3, {
     message: "O nome do documento deve ter pelo menos 3 caracteres.",
@@ -54,9 +54,10 @@ const createEditFormSchema = (
     if (canEditDepartment) {
         return availableDepartments.includes(val);
     }
-    return val === existingDepartment; // If not editable, it must be the existing department
+    // If user can't edit, the value must match the original document's department
+    return val === (existingDepartmentValue || ""); // Match string or empty string if undefined
   }, {
-    message: "Por favor, selecione um departamento válido.",
+    message: "Departamento inválido. Você pode não ter permissão para alterá-lo ou o valor não é reconhecido.",
   }),
   sourceType: z.enum(["internal", "googleDocs", "local"],{
     errorMap: () => ({ message: "Por favor, selecione a fonte do documento." }),
@@ -98,16 +99,18 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
   const isAdmin = useMemo(() => (user?.departments || []).includes(ADMIN_DEPARTMENT), [user]);
-  const canEditDepartment = isAdmin; // Only admin can change department
+  const canEditDepartment = isAdmin;
 
   useEffect(() => {
     setIsLoadingConfig(true);
     try {
-      const storedTypes = localStorage.getItem(localStorageDocumentTypesKey);
-      setAvailableDocumentTypes(storedTypes ? JSON.parse(storedTypes) : [...DEFAULT_DOCUMENT_TYPES]);
+      if (typeof window !== 'undefined') {
+        const storedTypes = localStorage.getItem(localStorageDocumentTypesKey);
+        setAvailableDocumentTypes(storedTypes ? JSON.parse(storedTypes) : [...DEFAULT_DOCUMENT_TYPES]);
 
-      const storedDepts = localStorage.getItem(localStorageDepartmentsKey);
-      setAvailableDepartments(storedDepts ? JSON.parse(storedDepts) : [...DEFAULT_DOCUMENT_DEPARTMENTS]);
+        const storedDepts = localStorage.getItem(localStorageDepartmentsKey);
+        setAvailableDepartments(storedDepts ? JSON.parse(storedDepts) : [...DEFAULT_DOCUMENT_DEPARTMENTS]);
+      }
     } catch (error) {
       console.error("Erro ao carregar configurações do localStorage:", error);
       setAvailableDocumentTypes([...DEFAULT_DOCUMENT_TYPES]);
@@ -119,41 +122,50 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
 
   const currentSchema = useMemo(() => {
     return createEditFormSchema(
-        availableDocumentTypes, 
-        availableDepartments, 
-        canEditDepartment, 
+        availableDocumentTypes,
+        availableDepartments,
+        canEditDepartment,
         existingDocument.department
     );
   }, [availableDocumentTypes, availableDepartments, canEditDepartment, existingDocument.department]);
 
   const form = useForm<z.infer<ReturnType<typeof createEditFormSchema>>>({
     resolver: zodResolver(currentSchema),
-    // Default values will be set by useEffect/reset below
+    // Default values are set by the useEffect below to ensure they use loaded config
   });
   
   useEffect(() => {
-    if (isLoadingConfig || !user) return; // Wait for config and user
+    // This effect resets the form when dynamic config or the document itself changes.
+    // Crucial for ensuring the form is initialized with the correct schema and values.
+    if (isLoadingConfig || !user || !existingDocument) return;
 
-    // Reset form with existing document values once config is loaded
     form.reset({
       name: existingDocument.name,
-      type: availableDocumentTypes.includes(existingDocument.type) ? existingDocument.type : (availableDocumentTypes[0] || ""),
-      department: (canEditDepartment && existingDocument.department && availableDepartments.includes(existingDocument.department)) 
-                  ? existingDocument.department 
-                  : (canEditDepartment ? (availableDepartments[0] || "") : existingDocument.department || ""), // Fallback for admin if doc has no dept
+      type: availableDocumentTypes.includes(existingDocument.type as DocumentTypeValue) 
+            ? existingDocument.type 
+            : (availableDocumentTypes.length > 0 ? availableDocumentTypes[0] : ""),
+      department: existingDocument.department || "", // Ensure it's a string for the Select
       sourceType: existingDocument.sourceType,
       googleDocsId: existingDocument.googleDocsId || "",
       localFileIdentifier: existingDocument.localFileIdentifier || "",
       internalContent: existingDocument.internalContent || "",
     });
 
-  }, [isLoadingConfig, user, existingDocument, form, availableDocumentTypes, availableDepartments, canEditDepartment, currentSchema]);
+  }, [
+    isLoadingConfig, 
+    user, 
+    existingDocument, 
+    form.reset, // form.reset is stable
+    availableDocumentTypes, 
+    availableDepartments,
+    // currentSchema is not needed here as form.reset re-evaluates against the current resolver
+  ]);
 
 
   useEffect(() => {
-    if (user && !isAdmin && !(user.departments || []).includes(existingDocument.department || "")) {
+    if (user && !isAdmin && existingDocument.department && !(user.departments || []).includes(existingDocument.department)) {
         toast({title: "Acesso Negado", description: "Você não tem permissão para editar documentos deste departamento.", variant: "destructive"});
-        router.push("/");
+        router.push("/"); // Or to document detail page
     }
   }, [user, isAdmin, existingDocument.department, router, toast]);
 
@@ -203,7 +215,7 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
       toast({ title: "Erro de Autenticação", description: "Usuário não logado.", variant: "destructive" });
       return;
     }
-    if (!isAdmin && !(user.departments || []).includes(existingDocument.department || "")) {
+    if (!isAdmin && existingDocument.department && !(user.departments || []).includes(existingDocument.department)) {
       toast({ title: "Acesso Negado", description: "Você não pode editar documentos de outro departamento.", variant: "destructive" });
       return;
     }
@@ -213,7 +225,7 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
     formData.append("id", existingDocument.id);
     formData.append("name", values.name);
     formData.append("type", values.type);
-    formData.append("department", values.department); 
+    formData.append("department", values.department || ""); // Ensure department is always a string
     formData.append("sourceType", values.sourceType);
 
     if (values.sourceType === "googleDocs" && values.googleDocsId) {
@@ -245,7 +257,7 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
     }
   }
 
-  if (isLoadingConfig || !user) {
+  if (isLoadingConfig || !user || !existingDocument) { // Added !existingDocument guard here for initial render
      return (
       <Card className="w-full max-w-2xl mx-auto shadow-lg">
         <CardHeader>
@@ -341,7 +353,9 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                             </SelectItem>
                           ))
                         ) : (
-                          existingDocument.department && <SelectItem value={existingDocument.department}>{existingDocument.department}</SelectItem>
+                          // If not admin, show current department, or empty if none
+                          // The value is already set by form.reset
+                          <SelectItem value={field.value || ""}>{field.value || "N/A"}</SelectItem>
                         )}
                       </SelectContent>
                     </Select>
@@ -362,9 +376,10 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                       onValueChange={(value) => {
                         const newSourceType = value as DocumentSourceType;
                         field.onChange(newSourceType);
-                        form.setValue("googleDocsId", newSourceType === "googleDocs" ? form.getValues("googleDocsId") : "");
-                        form.setValue("localFileIdentifier", newSourceType === "local" ? form.getValues("localFileIdentifier") : "");
-                        form.setValue("internalContent", newSourceType === "internal" ? form.getValues("internalContent") : "");
+                        // Clear other source type fields when selection changes
+                        if (newSourceType !== "googleDocs") form.setValue("googleDocsId", "");
+                        if (newSourceType !== "local") form.setValue("localFileIdentifier", "");
+                        if (newSourceType !== "internal") form.setValue("internalContent", "");
                       }}
                       value={field.value}
                       className="flex flex-col space-y-1 md:flex-row md:space-y-0 md:space-x-4"
@@ -491,3 +506,5 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
     </Card>
   );
 }
+
+    
