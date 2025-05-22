@@ -24,7 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import type { TemplateMetadata, LoggedInUser, DocumentTypeValue, DocumentDepartmentValue } from "@/lib/types";
+import type { TemplateMetadata, LoggedInUser, DocumentTypeValue, DocumentDepartmentValue, DocumentSourceType } from "@/lib/types";
 import { ADMIN_DEPARTMENT, DEFAULT_DOCUMENT_TYPES, DEFAULT_DOCUMENT_DEPARTMENTS } from "@/lib/types";
 import { createDocumentAction } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
@@ -42,19 +42,19 @@ const localStorageDepartmentsKey = "docflow-document-departments";
 const createFormSchema = (
   availableTypes: DocumentTypeValue[], 
   availableDepartments: DocumentDepartmentValue[],
-  userDepartments?: DocumentDepartmentValue[] // For non-admin users with multiple departments
+  userDepartments?: DocumentDepartmentValue[] 
 ) => z.object({
   name: z.string().min(3, {
     message: "O nome do documento deve ter pelo menos 3 caracteres.",
   }),
-  type: z.string().refine(val => availableTypes.includes(val), {
+  type: z.string({ required_error: "Por favor, selecione um tipo de documento."}).refine(val => availableTypes.includes(val), {
     message: "Por favor, selecione um tipo de documento válido.",
   }),
-  department: z.string().refine(val => {
-    if (userDepartments) { // Non-admin with multiple departments
+  department: z.string({ required_error: "Por favor, selecione um departamento."}).refine(val => {
+    if (userDepartments && userDepartments.length > 0) { 
       return userDepartments.includes(val);
     }
-    return availableDepartments.includes(val); // Admin or non-admin with single (pre-filled) dept
+    return availableDepartments.includes(val); 
   }, {
     message: "Por favor, selecione um departamento válido.",
   }),
@@ -86,6 +86,17 @@ interface CreateDocumentFormProps {
   initialTemplate?: TemplateMetadata | null;
 }
 
+// Define initial default values outside the component to ensure consistency
+const initialFormValues = {
+  name: "",
+  type: undefined as DocumentTypeValue | undefined,
+  department: undefined as DocumentDepartmentValue | undefined,
+  sourceType: "internal" as DocumentSourceType,
+  googleDocsId: "",
+  localFileIdentifier: "",
+  internalContent: "",
+};
+
 export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps) {
   const { toast } = useToast();
   const router = useRouter();
@@ -100,8 +111,8 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
   
   const userSelectableDepartments = useMemo(() => {
     if (!user) return [];
-    if (isAdmin) return availableDepartments; // Admin can choose any loaded department
-    return user.departments || []; // Non-admin can choose from their assigned departments
+    if (isAdmin) return availableDepartments; 
+    return user.departments || []; 
   }, [user, isAdmin, availableDepartments]);
 
 
@@ -130,57 +141,76 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
 
   const form = useForm<z.infer<ReturnType<typeof createFormSchema>>>({
     resolver: zodResolver(currentSchema),
-    // Default values are set in a useEffect below to ensure they use loaded config
+    defaultValues: useMemo(() => { // Memoize defaultValues based on initialTemplate
+        if (initialTemplate) {
+            const templateSourceType = "internal"; // Default to internal when using template for content
+            return {
+                ...initialFormValues,
+                name: `Documento Baseado em: ${initialTemplate.name}`,
+                type: availableDocumentTypes.includes(initialTemplate.defaultDocumentType) 
+                      ? initialTemplate.defaultDocumentType 
+                      : (availableDocumentTypes.length > 0 ? availableDocumentTypes[0] : undefined),
+                sourceType: templateSourceType,
+                internalContent: templateSourceType === "internal" ? initialTemplate.baseContentPreview : "",
+            };
+        }
+        return initialFormValues;
+    }, [initialTemplate, availableDocumentTypes]) // Recalculate if initialTemplate changes
   });
   
   const currentSourceType = form.watch("sourceType");
 
   useEffect(() => {
-    if (isLoadingConfig || !user) return; // Wait for config and user
+    if (isLoadingConfig || !user) return;
 
-    let defaultDept: DocumentDepartmentValue | undefined = undefined;
-    if (!isAdmin) {
-        if (user.departments && user.departments.length > 0) {
-            defaultDept = user.departments[0]; // Pre-fill with the first one for non-admins
+    let defaultDept: DocumentDepartmentValue | undefined = initialFormValues.department;
+    if (user?.departments) {
+        if (!isAdmin && user.departments.length > 0) {
+            defaultDept = user.departments[0];
+        } else if (isAdmin) {
+            defaultDept = availableDepartments.includes(ADMIN_DEPARTMENT) 
+                          ? ADMIN_DEPARTMENT 
+                          : (availableDepartments.length > 0 ? availableDepartments[0] : undefined);
         }
-    } else {
-      // For admin, if availableDepartments has been loaded and contains ADMIN_DEPARTMENT, set it as default
-      // Otherwise, set the first available department, or undefined if none
-      if(availableDepartments.includes(ADMIN_DEPARTMENT)) {
-        defaultDept = ADMIN_DEPARTMENT;
-      } else if (availableDepartments.length > 0) {
-        defaultDept = availableDepartments[0];
-      }
     }
-
-    const defaultType = initialTemplate 
+    
+    const defaultType = initialTemplate
         ? (availableDocumentTypes.includes(initialTemplate.defaultDocumentType) ? initialTemplate.defaultDocumentType : (availableDocumentTypes.length > 0 ? availableDocumentTypes[0] : undefined))
-        : (availableDocumentTypes.length > 0 ? availableDocumentTypes[0] : undefined);
+        : (form.getValues("type") || (availableDocumentTypes.length > 0 ? availableDocumentTypes[0] : undefined));
 
+
+    // Reset the form with possibly updated defaults after config is loaded or user/template changes
+    // This ensures that select fields like type and department are populated correctly after async loading
     form.reset({
-      name: initialTemplate ? `Documento Baseado em: ${initialTemplate.name}` : "",
+      name: initialTemplate ? `Documento Baseado em: ${initialTemplate.name}` : (form.getValues("name") || initialFormValues.name),
       type: defaultType,
       department: defaultDept,
-      sourceType: form.getValues("sourceType") || "internal",
-      googleDocsId: "",
-      localFileIdentifier: "",
-      internalContent: (form.getValues("sourceType") === "internal" || (!form.getValues("sourceType") && "internal" === "internal")) && initialTemplate
+      sourceType: form.getValues("sourceType") || initialFormValues.sourceType,
+      googleDocsId: form.getValues("googleDocsId") || initialFormValues.googleDocsId,
+      localFileIdentifier: form.getValues("localFileIdentifier") || initialFormValues.localFileIdentifier,
+      internalContent: (form.getValues("sourceType") === "internal" && initialTemplate)
                          ? initialTemplate.baseContentPreview 
-                         : "",
+                         : (form.getValues("sourceType") === "internal" ? (form.getValues("internalContent") || initialFormValues.internalContent) : initialFormValues.internalContent),
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTemplate, user, isAdmin, isLoadingConfig, availableDocumentTypes, availableDepartments, form.reset]); // Added form.reset to dep array
+  }, [initialTemplate, user, isAdmin, isLoadingConfig, availableDocumentTypes, availableDepartments, form, currentSchema]);
 
 
   useEffect(() => {
-    if (currentSourceType === "internal") {
-      if (initialTemplate && form.getValues("internalContent") !== initialTemplate.baseContentPreview ) {
-        if(!form.getValues("internalContent") || form.getValues("internalContent") === ""){
-            form.setValue("internalContent", initialTemplate.baseContentPreview);
+    // This effect handles changes to sourceType *after* initial load
+    if (initialTemplate) {
+        if (currentSourceType === "internal") {
+            if (form.getValues("internalContent") !== initialTemplate.baseContentPreview) {
+                 if(!form.getValues("internalContent") || form.getValues("internalContent") === ""){
+                     form.setValue("internalContent", initialTemplate.baseContentPreview, { shouldValidate: true });
+                 }
+            }
+        } else {
+          form.setValue("internalContent", "", { shouldValidate: true }); 
         }
-      }
     } else {
-      form.setValue("internalContent", ""); 
+        if (currentSourceType !== "internal") {
+            form.setValue("internalContent", "", { shouldValidate: true });
+        }
     }
   }, [currentSourceType, initialTemplate, form]);
 
@@ -261,7 +291,6 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
       if (values.sourceType === "googleDocs" && initialTemplate) {
         description += " Lembre-se de criar o documento no Google Docs e usar o ID fornecido aqui.";
       } else if (values.sourceType === "googleDocs" && !values.googleDocsId && !initialTemplate) {
-        // This case shouldn't happen due to Zod validation, but as a fallback message
         description += " Lembre-se de editar este documento no sistema para adicionar o ID do Google Doc.";
       }
       toast({ title: "Documento Criado", description, duration: 7000 });
@@ -406,15 +435,16 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                     <RadioGroup
                       onValueChange={(value) => {
                         field.onChange(value);
-                        form.setValue("googleDocsId", "");
-                        form.setValue("localFileIdentifier", "");
-                        if (value === "internal" && initialTemplate) {
+                        const newSourceType = value as DocumentSourceType;
+                        form.setValue("googleDocsId", newSourceType === "googleDocs" ? form.getValues("googleDocsId") : "");
+                        form.setValue("localFileIdentifier", newSourceType === "local" ? form.getValues("localFileIdentifier") : "");
+                        if (newSourceType === "internal" && initialTemplate) {
                            form.setValue("internalContent", initialTemplate.baseContentPreview);
-                        } else if (value !== "internal") {
+                        } else if (newSourceType !== "internal") {
                            form.setValue("internalContent", "");
                         }
                       }}
-                      defaultValue={field.value}
+                      value={field.value} // Ensure value is controlled
                       className="flex flex-col space-y-1 md:flex-row md:space-y-0 md:space-x-4"
                     >
                       <FormItem className="flex items-center space-x-3 space-y-0">
