@@ -1,7 +1,7 @@
 
 "use client"; // Convert to client component for auth check
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react'; // Import React
 import { getDocumentById } from "@/data/mock-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -11,14 +11,17 @@ import { notFound, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DocumentMetadata, DocumentSourceType } from "@/lib/types";
-import { ADMIN_DEPARTMENT } from '@/lib/types'; // Correct import
+import { ADMIN_DEPARTMENT } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface DocumentDetailPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>; // Updated type
 }
 
-export default function DocumentDetailPage({ params }: DocumentDetailPageProps) {
+export default function DocumentDetailPage({ params: paramsPromise }: DocumentDetailPageProps) {
+  const resolvedParams = React.use(paramsPromise); // Unwrap params
+  const documentId = resolvedParams.id;
+
   const { user, isLoading: authIsLoading } = useAuth();
   const router = useRouter();
   const [document, setDocument] = useState<DocumentMetadata | null | undefined>(undefined); // undefined: loading, null: not found or access denied
@@ -28,13 +31,13 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
     if (authIsLoading) return; // Wait for auth state
 
     if (!user) {
-      router.push("/login"); // Should be handled by AuthProvider, but good fallback
+      router.push("/login"); 
       return;
     }
 
     async function fetchDocument() {
       setIsLoadingDoc(true);
-      const fetchedDocument = await getDocumentById(params.id);
+      const fetchedDocument = await getDocumentById(documentId); // Use resolved documentId
       if (!fetchedDocument) {
         setDocument(null); // Triggers notFound later
         setIsLoadingDoc(false);
@@ -50,8 +53,10 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
       setIsLoadingDoc(false);
     }
 
-    fetchDocument();
-  }, [params.id, user, authIsLoading, router]);
+    if (documentId) { // Ensure documentId is available
+        fetchDocument();
+    }
+  }, [documentId, user, authIsLoading, router]); // Updated dependency
 
 
   if (authIsLoading || isLoadingDoc || document === undefined) {
