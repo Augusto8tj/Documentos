@@ -15,7 +15,7 @@ import { Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 // Export this for use in settings page initialization
-export const initialMockUsers: Omit<LoggedInUser, 'id'>[] = [
+export const initialMockUsers: Omit<LoggedInUser, 'id' | 'password'> & { password?: string }[] = [
   { name: "Admin RH", email: "admin@rh.com", role: UserRole.ADMIN, departments: [ADMIN_DEPARTMENT, ...DEFAULT_DOCUMENT_DEPARTMENTS.filter(d => d !== ADMIN_DEPARTMENT)], password: "123" },
   { name: "Funcionário TI", email: "user@ti.com", role: UserRole.EMPLOYEE, departments: ["Tecnologia da Informação"], password: "123" },
   { name: "Funcionário ADM", email: "user@adm.com", role: UserRole.EMPLOYEE, departments: ["Administração"], password: "123" },
@@ -37,28 +37,97 @@ export default function LoginPage() {
 
   useEffect(() => {
     setIsLoadingUsers(true);
+    let usersToSet: LoggedInUser[];
+    let needsStorageUpdate = false;
+
     try {
       const storedUsersString = localStorage.getItem(ALL_USERS_STORAGE_KEY);
       if (storedUsersString) {
         const usersFromStorage: LoggedInUser[] = JSON.parse(storedUsersString);
-        // Ensure all users from storage have a password and departments array for the simulation
-        const usersWithPasswordsEnsured = usersFromStorage.map(u => ({
-          ...u,
-          password: u.password || "123", // Assign default if missing
-          departments: Array.isArray(u.departments) ? u.departments : (typeof u.departments === 'string' ? [u.departments] : []) // Ensure departments is an array
-        }));
-        setAvailableUsers(usersWithPasswordsEnsured);
+
+        usersToSet = usersFromStorage.map(u => {
+          const initialUserDefinition = initialMockUsers.find(initU => initU.email === u.email);
+          
+          let finalDepartments = Array.isArray(u.departments) ? u.departments : [];
+          let finalRole = u.role;
+          let finalPassword = u.password || (initialUserDefinition?.password || "123");
+          let finalId = u.id || crypto.randomUUID();
+
+          if (u.email === "admin@rh.com" && initialUserDefinition) {
+            const initialAdminRole = initialUserDefinition.role;
+            const initialAdminDepartments = Array.isArray(initialUserDefinition.departments) 
+                                          ? initialUserDefinition.departments 
+                                          : [ADMIN_DEPARTMENT];
+
+            if (u.role !== initialAdminRole) {
+              finalRole = initialAdminRole;
+              needsStorageUpdate = true;
+            }
+            
+            const currentDepartmentsSet = new Set(finalDepartments);
+            let adminDepartmentsChanged = false;
+            initialAdminDepartments.forEach(dept => {
+              if (!currentDepartmentsSet.has(dept)) {
+                currentDepartmentsSet.add(dept);
+                adminDepartmentsChanged = true;
+              }
+            });
+            if(adminDepartmentsChanged || finalDepartments.length !== currentDepartmentsSet.size){
+                finalDepartments = Array.from(currentDepartmentsSet);
+                needsStorageUpdate = true;
+            }
+          } else if (!Array.isArray(u.departments)) {
+            finalDepartments = [];
+            if (JSON.stringify(u.departments) !== JSON.stringify(finalDepartments)) needsStorageUpdate = true;
+          }
+           if(u.id !== finalId) needsStorageUpdate = true;
+           if(u.password !== finalPassword) needsStorageUpdate = true;
+
+
+          return {
+            ...u,
+            id: finalId,
+            password: finalPassword,
+            role: finalRole,
+            departments: finalDepartments,
+          };
+        });
+        
+        if (needsStorageUpdate) {
+            localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersToSet));
+        }
+
       } else {
         // Initialize localStorage if empty
-        const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID(), password: u.password || "123", departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue]  }));
-        localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersWithIds));
-        setAvailableUsers(usersWithIds as LoggedInUser[]);
+        usersToSet = initialMockUsers.map(u => ({
+          id: crypto.randomUUID(),
+          name: u.name,
+          email: u.email,
+          role: u.role,
+          password: u.password || "123",
+          departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] 
+        })) as LoggedInUser[];
+        localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersToSet));
       }
+      setAvailableUsers(usersToSet);
     } catch (error) {
-      console.error("Failed to load users from localStorage", error);
-      // Fallback to initial mocks if localStorage is corrupt
-      const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID(), password: u.password || "123", departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] }));
-      setAvailableUsers(usersWithIds as LoggedInUser[]);
+      console.error("Failed to load or initialize users from localStorage", error);
+      // Fallback to initial mocks if localStorage is corrupt or error occurs
+      usersToSet = initialMockUsers.map(u => ({
+        id: crypto.randomUUID(),
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        password: u.password || "123",
+        departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue]
+      })) as LoggedInUser[];
+      setAvailableUsers(usersToSet);
+       // Attempt to set localStorage again on error for next load
+      try {
+        localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersToSet));
+      } catch (setLocalError){
+        console.error("Failed to set localStorage after fallback", setLocalError);
+      }
     }
     setIsLoadingUsers(false);
   }, []);
@@ -142,7 +211,7 @@ export default function LoginPage() {
           <Button 
             onClick={handleLogin} 
             className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" 
-            disabled={isLoggingIn || !selectedUserEmail || !passwordInput}
+            disabled={isLoggingIn || !selectedUserEmail || !passwordInput || isLoadingUsers}
           >
             {isLoggingIn ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
             Entrar
@@ -152,3 +221,6 @@ export default function LoginPage() {
     </div>
   );
 }
+
+
+    
