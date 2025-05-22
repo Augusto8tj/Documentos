@@ -11,7 +11,7 @@ import { notFound, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DocumentMetadata, DocumentSourceType } from "@/lib/types";
-import { DocumentDepartment } from '@/lib/types';
+import { ADMIN_DEPARTMENT } from '@/lib/types'; // Correct import
 import { useAuth } from '@/contexts/AuthContext';
 
 interface DocumentDetailPageProps {
@@ -41,8 +41,8 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
         return;
       }
 
-      const userIsAdmin = user.department === DocumentDepartment.RECURSOS_HUMANOS;
-      if (!userIsAdmin && fetchedDocument.department !== user.department) {
+      const userIsAdmin = (user.departments || []).includes(ADMIN_DEPARTMENT);
+      if (!userIsAdmin && (!fetchedDocument.department || !(user.departments || []).includes(fetchedDocument.department))) {
         setDocument(null); // Mark as not found for non-admins trying to access other dept docs
       } else {
         setDocument(fetchedDocument);
@@ -85,7 +85,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
     }
   };
 
-  const canEditThisDocument = user?.department === DocumentDepartment.RECURSOS_HUMANOS || user?.department === document.department;
+  const canEditThisDocument = (user?.departments || []).includes(ADMIN_DEPARTMENT) || ((user?.departments || []).includes(document.department || ""));
 
   return (
     <div className="container mx-auto py-2">
@@ -122,7 +122,7 @@ export default function DocumentDetailPage({ params }: DocumentDetailPageProps) 
           <div>
             <h3 className="font-semibold text-foreground">Status:</h3>
             <p className="text-muted-foreground">
-              {document.status === "Published" ? "Publicado" : document.status === "Draft" ? "Rascunho" : document.status}
+              {document.status === "Published" ? "Publicado" : document.status === "Draft" ? "Rascunho" : document.status === "Archived" ? "Arquivado" : document.status}
             </p>
           </div>
           {document.department && (
