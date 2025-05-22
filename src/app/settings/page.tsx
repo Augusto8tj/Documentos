@@ -17,20 +17,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { Loader2, User, Palette, Users, Edit2, Building } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardFooter } from "@/components/ui/card";
+import { Loader2, User, Palette, Users, Edit2, Building, BookType, Landmark } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
-import type { LoggedInUser } from "@/lib/types";
-import { DocumentDepartment } from "@/lib/types";
-import { initialMockUsers } from "@/app/login/page"; // Import initial mock users
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import type { LoggedInUser, DocumentDepartmentValue, DocumentTypeValue, UserRoleValue } from "@/lib/types";
+import { ADMIN_DEPARTMENT, DEFAULT_DOCUMENT_DEPARTMENTS, DEFAULT_DOCUMENT_TYPES, UserRole } from "@/lib/types";
+import { initialMockUsers } from "@/app/login/page"; 
 import {
   Table,
   TableBody,
@@ -39,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 
 
 const profileFormSchema = z.object({
@@ -51,70 +45,105 @@ type ProfileFormValues = z.infer<typeof profileFormSchema>;
 type Theme = "light" | "dark" | "system" | "feminine" | "professional" | "playful" | "serif-classic";
 
 const localStorageThemeKey = "docflow-active-theme"; 
-const localStorageProfileKey = "docflow-profile-settings";
+const localStorageProfileNameKey = "docflow-profile-name"; // Specific key for profile name
 const ALL_USERS_STORAGE_KEY = "docflow-all-users";
+const localStorageDocumentTypesKey = "docflow-document-types";
+const localStorageDepartmentsKey = "docflow-document-departments";
+
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const { user: loggedInUser, login: updateAuthContextUser } = useAuth();
+  const { user: loggedInUser, login: updateAuthContextUser } = useAuth(); // login here is used to update context
   const [isSubmittingProfile, setIsSubmittingProfile] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState<Theme>("system");
 
   const [manageableUsers, setManageableUsers] = useState<LoggedInUser[]>([]);
   const [isSavingUserDepartments, setIsSavingUserDepartments] = useState(false);
 
-  const isAdmin = loggedInUser?.department === DocumentDepartment.RECURSOS_HUMANOS;
+  const [availableDocumentTypes, setAvailableDocumentTypes] = useState<DocumentTypeValue[]>([]);
+  const [newDocumentType, setNewDocumentType] = useState("");
+  const [isAddingDocType, setIsAddingDocType] = useState(false);
+
+  const [availableDepartments, setAvailableDepartments] = useState<DocumentDepartmentValue[]>([]);
+  const [newDepartment, setNewDepartment] = useState("");
+  const [isAddingDepartment, setIsAddingDepartment] = useState(false);
+  
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
+
+
+  const isAdmin = loggedInUser?.role === UserRole.ADMIN && (loggedInUser?.departments || []).includes(ADMIN_DEPARTMENT);
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
-      name: loggedInUser?.name || "",
-      email: loggedInUser?.email || "",
+      name: "",
+      email: "",
     },
   });
 
   useEffect(() => {
-    if (loggedInUser) {
-      profileForm.reset({
-        name: loggedInUser.name,
-        email: loggedInUser.email,
-      });
-    }
-    const storedProfileSettings = localStorage.getItem(localStorageProfileKey);
-    if (storedProfileSettings) {
-        try {
-            const profile = JSON.parse(storedProfileSettings) as ProfileFormValues;
-            if (profile.name && profile.name !== loggedInUser?.name) profileForm.setValue("name", profile.name);
-        } catch (error) {
-            console.error("Erro ao carregar configurações de perfil do localStorage:", error);
-        }
-    }
+    setIsLoadingConfig(true);
+    try {
+      const storedTypes = localStorage.getItem(localStorageDocumentTypesKey);
+      setAvailableDocumentTypes(storedTypes ? JSON.parse(storedTypes) : [...DEFAULT_DOCUMENT_TYPES]);
 
-  }, [loggedInUser, profileForm]);
+      const storedDepts = localStorage.getItem(localStorageDepartmentsKey);
+      setAvailableDepartments(storedDepts ? JSON.parse(storedDepts) : [...DEFAULT_DOCUMENT_DEPARTMENTS]);
+      
+      const storedTheme = localStorage.getItem(localStorageThemeKey) as Theme | null;
+      if (storedTheme && ["light", "dark", "system", "feminine", "professional", "playful", "serif-classic"].includes(storedTheme)) {
+        setSelectedTheme(storedTheme);
+      }
 
-  useEffect(() => {
-    const storedTheme = localStorage.getItem(localStorageThemeKey) as Theme | null;
-    if (storedTheme && ["light", "dark", "system", "feminine", "professional", "playful", "serif-classic"].includes(storedTheme)) {
-      setSelectedTheme(storedTheme);
+    } catch (error) {
+      console.error("Erro ao carregar configurações do localStorage:", error);
+      setAvailableDocumentTypes([...DEFAULT_DOCUMENT_TYPES]);
+      setAvailableDepartments([...DEFAULT_DOCUMENT_DEPARTMENTS]);
+    } finally {
+      setIsLoadingConfig(false);
     }
   }, []);
 
-  // Load manageable users for admin
+
+  useEffect(() => {
+    if (loggedInUser) {
+      const storedProfileName = localStorage.getItem(localStorageProfileNameKey);
+      profileForm.reset({
+        name: storedProfileName || loggedInUser.name, // Prefer localStorage name if exists, then context
+        email: loggedInUser.email,
+      });
+    }
+  }, [loggedInUser, profileForm]);
+
+
   useEffect(() => {
     if (isAdmin) {
       try {
         const storedUsersString = localStorage.getItem(ALL_USERS_STORAGE_KEY);
         if (storedUsersString) {
-          setManageableUsers(JSON.parse(storedUsersString));
+           const usersFromStorage: LoggedInUser[] = JSON.parse(storedUsersString);
+           const usersWithDepartmentsEnsured = usersFromStorage.map(u => ({
+            ...u,
+            departments: Array.isArray(u.departments) ? u.departments : (typeof u.departments === 'string' ? [u.departments as DocumentDepartmentValue] : [])
+           }));
+           setManageableUsers(usersWithDepartmentsEnsured);
         } else {
-          // Initialize if not present (should be initialized by login page, but as fallback)
-          const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID() }));
-          localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersWithIds));
-          setManageableUsers(usersWithIds);
+          const usersWithIdsAndArrayDepartments = initialMockUsers.map(u => ({ 
+            ...u, 
+            id: crypto.randomUUID(),
+            departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] 
+          }));
+          localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersWithIdsAndArrayDepartments));
+          setManageableUsers(usersWithIdsAndArrayDepartments);
         }
       } catch (error) {
         console.error("Erro ao carregar usuários gerenciáveis:", error);
-        setManageableUsers(initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID() }))); // Fallback
+        const usersWithIdsAndArrayDepartments = initialMockUsers.map(u => ({ 
+          ...u, 
+          id: crypto.randomUUID(),
+          departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] 
+        }));
+        setManageableUsers(usersWithIdsAndArrayDepartments); 
       }
     }
   }, [isAdmin]);
@@ -122,10 +151,10 @@ export default function SettingsPage() {
   const handleProfileSubmit = (values: ProfileFormValues) => {
     setIsSubmittingProfile(true);
     try {
-      localStorage.setItem(localStorageProfileKey, JSON.stringify({ name: values.name }));
+      localStorage.setItem(localStorageProfileNameKey, values.name);
       if (loggedInUser) {
-        const updatedUser: LoggedInUser = { ...loggedInUser, name: values.name };
-        updateAuthContextUser(updatedUser);
+        const updatedUser: LoggedInUser = { ...loggedInUser, name: values.name, email: loggedInUser.email }; // email remains from auth context
+        updateAuthContextUser(updatedUser); // This updates the context and localStorage for loggedInUser
       }
       toast({
         title: "Perfil Atualizado",
@@ -180,11 +209,25 @@ export default function SettingsPage() {
       });
   };
 
-  const handleUserDepartmentChange = (userId: string, newDepartment: DocumentDepartment) => {
+  const handleUserDepartmentCheckboxChange = (userId: string, departmentValue: DocumentDepartmentValue, checked: boolean) => {
     setManageableUsers(prevUsers =>
-      prevUsers.map(user =>
-        user.id === userId ? { ...user, department: newDepartment } : user
-      )
+      prevUsers.map(user => {
+        if (user.id === userId) {
+          const currentDepartments = Array.isArray(user.departments) ? user.departments : [];
+          let newDepartments: DocumentDepartmentValue[];
+          if (checked) {
+            newDepartments = [...currentDepartments, departmentValue];
+          } else {
+            newDepartments = currentDepartments.filter(dept => dept !== departmentValue);
+          }
+          // Ensure ADMIN_DEPARTMENT is always present for admins and not removable if it's their defining role
+          if (user.role === UserRole.ADMIN && user.email === loggedInUser?.email && !newDepartments.includes(ADMIN_DEPARTMENT)) {
+            newDepartments.push(ADMIN_DEPARTMENT);
+          }
+          return { ...user, departments: newDepartments };
+        }
+        return user;
+      })
     );
   };
 
@@ -208,8 +251,56 @@ export default function SettingsPage() {
     }
   };
 
+  const handleAddDocumentType = () => {
+    if (!newDocumentType.trim()) {
+      toast({ title: "Tipo Inválido", description: "O nome do tipo de documento não pode ser vazio.", variant: "destructive" });
+      return;
+    }
+    if (availableDocumentTypes.map(t => t.toLowerCase()).includes(newDocumentType.trim().toLowerCase())) {
+      toast({ title: "Tipo Duplicado", description: "Este tipo de documento já existe.", variant: "destructive" });
+      return;
+    }
+    setIsAddingDocType(true);
+    try {
+      const updatedTypes = [...availableDocumentTypes, newDocumentType.trim()];
+      setAvailableDocumentTypes(updatedTypes);
+      localStorage.setItem(localStorageDocumentTypesKey, JSON.stringify(updatedTypes));
+      toast({ title: "Tipo de Documento Adicionado", description: `"${newDocumentType.trim()}" foi adicionado.` });
+      setNewDocumentType("");
+    } catch (error) {
+      console.error("Erro ao adicionar tipo de documento:", error);
+      toast({ title: "Erro", description: "Não foi possível adicionar o tipo de documento.", variant: "destructive" });
+    } finally {
+      setIsAddingDocType(false);
+    }
+  };
 
-  if (!loggedInUser) {
+  const handleAddDepartment = () => {
+    if (!newDepartment.trim()) {
+      toast({ title: "Local Inválido", description: "O nome do local/departamento não pode ser vazio.", variant: "destructive" });
+      return;
+    }
+    if (availableDepartments.map(d => d.toLowerCase()).includes(newDepartment.trim().toLowerCase())) {
+      toast({ title: "Local Duplicado", description: "Este local/departamento já existe.", variant: "destructive" });
+      return;
+    }
+    setIsAddingDepartment(true);
+    try {
+      const updatedDepts = [...availableDepartments, newDepartment.trim()];
+      setAvailableDepartments(updatedDepts);
+      localStorage.setItem(localStorageDepartmentsKey, JSON.stringify(updatedDepts));
+      toast({ title: "Local/Departamento Adicionado", description: `"${newDepartment.trim()}" foi adicionado.` });
+      setNewDepartment("");
+    } catch (error) {
+      console.error("Erro ao adicionar local/departamento:", error);
+      toast({ title: "Erro", description: "Não foi possível adicionar o local/departamento.", variant: "destructive" });
+    } finally {
+      setIsAddingDepartment(false);
+    }
+  };
+
+
+  if (!loggedInUser || isLoadingConfig) {
     return (
       <div className="container mx-auto py-8 space-y-8 flex justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -230,7 +321,7 @@ export default function SettingsPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle className="text-xl flex items-center gap-2"><User className="h-5 w-5 text-primary" /> Perfil do Usuário</CardTitle>
-          <CardDescription>Altere seu nome de exibição. O e-mail e departamento são definidos pelo seu perfil de login.</CardDescription>
+          <CardDescription>Altere seu nome de exibição. O e-mail, departamento(s) e papel são definidos pelo seu perfil de login e/ou administrador.</CardDescription>
         </CardHeader>
         <Form {...profileForm}>
           <form onSubmit={profileForm.handleSubmit(handleProfileSubmit)}>
@@ -262,12 +353,12 @@ export default function SettingsPage() {
                 )}
               />
               <FormItem>
-                <FormLabel>Departamento (do perfil de login)</FormLabel>
-                <Input value={loggedInUser.department} disabled />
+                <FormLabel>Departamento(s)</FormLabel>
+                <Input value={(loggedInUser.departments || []).join(', ')} disabled />
               </FormItem>
                <FormItem>
-                <FormLabel>Papel (do perfil de login)</FormLabel>
-                <Input value={loggedInUser.role === 'admin' ? 'Administrador (Recursos Humanos)' : 'Funcionário'} disabled />
+                <FormLabel>Papel</FormLabel>
+                <Input value={loggedInUser.role === UserRole.ADMIN ? 'Administrador (Recursos Humanos)' : 'Funcionário'} disabled />
               </FormItem>
             </CardContent>
             <CardFooter className="border-t pt-6 flex justify-end">
@@ -292,111 +383,177 @@ export default function SettingsPage() {
             onValueChange={(value: string) => handleThemeChange(value as Theme)}
             className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-2"
           >
-            <Label htmlFor="theme-light" className="font-normal cursor-pointer flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
-              <RadioGroupItem value="light" id="theme-light" />
-              <span>Claro</span>
-            </Label>
-            <Label htmlFor="theme-dark" className="font-normal cursor-pointer flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
-              <RadioGroupItem value="dark" id="theme-dark" />
-              <span>Escuro</span>
-            </Label>
-            <Label htmlFor="theme-system" className="font-normal cursor-pointer flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
-              <RadioGroupItem value="system" id="theme-system" />
-              <span>Padrão do Sistema</span>
-            </Label>
-            <Label htmlFor="theme-feminine" className="font-normal cursor-pointer flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
-              <RadioGroupItem value="feminine" id="theme-feminine" />
-              <span>Feminino</span>
-            </Label>
-            <Label htmlFor="theme-professional" className="font-normal cursor-pointer flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
-              <RadioGroupItem value="professional" id="theme-professional" />
-              <span>Profissional</span>
-            </Label>
-            <Label htmlFor="theme-playful" className="font-normal cursor-pointer flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
-              <RadioGroupItem value="playful" id="theme-playful" />
-              <span>Divertido</span>
-            </Label>
-            <Label htmlFor="theme-serif-classic" className="font-normal cursor-pointer flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
-              <RadioGroupItem value="serif-classic" id="theme-serif-classic" />
-              <span>Serifa Clássico</span>
-            </Label>
+            {[
+              { value: "light", label: "Claro" },
+              { value: "dark", label: "Escuro" },
+              { value: "system", label: "Padrão do Sistema" },
+              { value: "feminine", label: "Feminino" },
+              { value: "professional", label: "Profissional" },
+              { value: "playful", label: "Divertido" },
+              { value: "serif-classic", label: "Serifa Clássico" },
+            ].map(themeOption => (
+               <Label key={themeOption.value} htmlFor={`theme-${themeOption.value}`} className="font-normal cursor-pointer flex items-center space-x-3 space-y-0 p-3 border rounded-md hover:bg-accent/50 transition-colors"> 
+                <RadioGroupItem value={themeOption.value} id={`theme-${themeOption.value}`} />
+                <span>{themeOption.label}</span>
+              </Label>
+            ))}
           </RadioGroup>
         </CardContent>
       </Card>
 
       {isAdmin && (
-        <Card className="shadow-lg">
-          <CardHeader>
-            <CardTitle className="text-xl flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Gerenciar Departamentos de Funcionários</CardTitle>
-            <CardDescription>Altere o departamento associado a cada funcionário. Essas alterações serão refletidas no próximo login do funcionário.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {manageableUsers.length === 0 ? (
-              <p className="text-muted-foreground text-center">Nenhum usuário para gerenciar encontrado.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nome</TableHead>
-                      <TableHead>E-mail</TableHead>
-                      <TableHead>Departamento Atual</TableHead>
-                      <TableHead>Novo Departamento</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {manageableUsers.filter(u => u.email !== loggedInUser.email) // Admin cannot change their own department here
-                      .map((user) => (
-                      <TableRow key={user.id}>
-                        <TableCell>{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
-                        <TableCell>{user.department}</TableCell>
-                        <TableCell>
-                          <Select
-                            value={user.department}
-                            onValueChange={(newDept) => handleUserDepartmentChange(user.id, newDept as DocumentDepartment)}
-                          >
-                            <SelectTrigger className="w-[200px]">
-                              <SelectValue placeholder="Selecione um departamento" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {Object.values(DocumentDepartment).map((dept) => (
-                                <SelectItem key={dept} value={dept}>
-                                  {dept}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
+        <>
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Gerenciar Departamentos de Funcionários</CardTitle>
+              <CardDescription>Designe os departamentos aos quais cada funcionário tem acesso.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {manageableUsers.length === 0 ? (
+                <p className="text-muted-foreground text-center">Nenhum usuário para gerenciar encontrado.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>E-mail</TableHead>
+                        <TableHead>Departamentos Designados</TableHead>
                       </TableRow>
-                    ))}
-                     {manageableUsers.filter(u => u.email === loggedInUser.email).map(user => (
+                    </TableHeader>
+                    <TableBody>
+                      {manageableUsers.filter(u => u.email !== loggedInUser.email) 
+                        .map((user) => (
                         <TableRow key={user.id}>
-                            <TableCell>{user.name} (Você)</TableCell>
-                            <TableCell>{user.email}</TableCell>
-                            <TableCell>{user.department}</TableCell>
-                            <TableCell>
-                                <span className="text-sm text-muted-foreground italic">Não pode alterar o próprio departamento aqui.</span>
-                            </TableCell>
+                          <TableCell>{user.name}</TableCell>
+                          <TableCell>{user.email}</TableCell>
+                          <TableCell>
+                            <div className="space-y-2 border rounded-md p-2 max-h-48 overflow-y-auto">
+                              {availableDepartments.map(deptValue => (
+                                <div key={deptValue} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`dept-${user.id}-${deptValue}`}
+                                    checked={(user.departments || []).includes(deptValue)}
+                                    onCheckedChange={(checked) => {
+                                      handleUserDepartmentCheckboxChange(user.id, deptValue, !!checked);
+                                    }}
+                                    disabled={user.role === UserRole.ADMIN && deptValue === ADMIN_DEPARTMENT && user.email === loggedInUser.email} // Prevent admin from removing their own core HR role
+                                  />
+                                  <Label htmlFor={`dept-${user.id}-${deptValue}`} className="font-normal text-sm">{deptValue}</Label>
+                                </div>
+                              ))}
+                            </div>
+                          </TableCell>
                         </TableRow>
-                     ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-          <CardFooter className="border-t pt-6 flex justify-end">
-            <Button 
-              onClick={handleSaveUserDepartments} 
-              disabled={isSavingUserDepartments || manageableUsers.length === 0}
-              className="bg-primary hover:bg-primary/90 text-primary-foreground"
-            >
-              {isSavingUserDepartments && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Salvar Departamentos
-            </Button>
-          </CardFooter>
-        </Card>
+                      ))}
+                      {manageableUsers.filter(u => u.email === loggedInUser.email).map(user => (
+                          <TableRow key={user.id}>
+                              <TableCell>{user.name} (Você)</TableCell>
+                              <TableCell>{user.email}</TableCell>
+                              <TableCell>
+                                  <div className="space-y-2 border rounded-md p-2">
+                                      {(user.departments || []).map(dept => (
+                                          <div key={dept} className="flex items-center space-x-2">
+                                              <Checkbox id={`selfdept-${dept}`} checked readOnly disabled />
+                                              <Label htmlFor={`selfdept-${dept}`} className="font-normal text-sm">{dept}</Label>
+                                          </div>
+                                      ))}
+                                      <p className="text-xs text-muted-foreground italic mt-1">Seu(s) departamento(s) principal(is) não podem ser alterados aqui.</p>
+                                  </div>
+                              </TableCell>
+                          </TableRow>
+                       ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter className="border-t pt-6 flex justify-end">
+              <Button 
+                onClick={handleSaveUserDepartments} 
+                disabled={isSavingUserDepartments || manageableUsers.length === 0}
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
+              >
+                {isSavingUserDepartments && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Salvar Departamentos dos Funcionários
+              </Button>
+            </CardFooter>
+          </Card>
+
+          <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle className="text-xl flex items-center gap-2"><BookType className="h-5 w-5 text-primary" /> Gerenciar Tipos de Documento</CardTitle>
+                <CardDescription>Adicione novos tipos de documento que podem ser usados no sistema.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex gap-2 items-end">
+                    <div className="flex-grow">
+                        <Label htmlFor="newDocumentType">Novo Tipo de Documento</Label>
+                        <Input 
+                            id="newDocumentType"
+                            value={newDocumentType}
+                            onChange={(e) => setNewDocumentType(e.target.value)}
+                            placeholder="Ex: Relatório Técnico"
+                            className="mt-1"
+                        />
+                    </div>
+                    <Button onClick={handleAddDocumentType} disabled={isAddingDocType || !newDocumentType.trim()} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                        {isAddingDocType && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Adicionar Tipo
+                    </Button>
+                </div>
+                <div>
+                    <h4 className="font-medium text-muted-foreground mb-2">Tipos Atuais:</h4>
+                    {availableDocumentTypes.length > 0 ? (
+                        <ul className="list-disc list-inside pl-4 text-sm text-foreground space-y-1 max-h-40 overflow-y-auto border rounded-md p-2">
+                            {availableDocumentTypes.map(type => <li key={type}>{type}</li>)}
+                        </ul>
+                    ) : (
+                        <p className="text-sm text-muted-foreground italic">Nenhum tipo de documento cadastrado.</p>
+                    )}
+                </div>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg">
+            <CardHeader>
+                <CardTitle className="text-xl flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" /> Gerenciar Locais/Departamentos</CardTitle>
+                <CardDescription>Adicione novos locais ou departamentos que podem ser associados a documentos e funcionários.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="flex gap-2 items-end">
+                    <div className="flex-grow">
+                        <Label htmlFor="newDepartment">Novo Local/Departamento</Label>
+                        <Input 
+                            id="newDepartment"
+                            value={newDepartment}
+                            onChange={(e) => setNewDepartment(e.target.value)}
+                            placeholder="Ex: Setor de Compras"
+                            className="mt-1"
+                        />
+                    </div>
+                    <Button onClick={handleAddDepartment} disabled={isAddingDepartment || !newDepartment.trim()} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                        {isAddingDepartment && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Adicionar Local
+                    </Button>
+                </div>
+                <div>
+                    <h4 className="font-medium text-muted-foreground mb-2">Locais/Departamentos Atuais:</h4>
+                    {availableDepartments.length > 0 ? (
+                        <ul className="list-disc list-inside pl-4 text-sm text-foreground space-y-1 max-h-40 overflow-y-auto border rounded-md p-2">
+                            {availableDepartments.map(dept => <li key={dept}>{dept} {dept === ADMIN_DEPARTMENT ? "(Departamento Admin - Não editável)" : ""}</li>)}
+                        </ul>
+                    ) : (
+                        <p className="text-sm text-muted-foreground italic">Nenhum local/departamento cadastrado.</p>
+                    )}
+                </div>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
 }
+
+
+    
