@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,8 @@ import { DocumentDepartment, UserRole } from '@/lib/types';
 import { AppLogo } from '@/components/icons';
 import { Loader2 } from 'lucide-react';
 
-const mockUsers: Omit<LoggedInUser, 'id'>[] = [
+// Export this for use in settings page initialization
+export const initialMockUsers: Omit<LoggedInUser, 'id'>[] = [
   { name: "Admin RH", email: "admin@rh.com", role: 'admin', department: DocumentDepartment.RECURSOS_HUMANOS },
   { name: "Funcionário TI", email: "user@ti.com", role: 'employee', department: DocumentDepartment.TI },
   { name: "Funcionário ADM", email: "user@adm.com", role: 'employee', department: DocumentDepartment.ADMINISTRACAO },
@@ -20,43 +21,61 @@ const mockUsers: Omit<LoggedInUser, 'id'>[] = [
   { name: "Funcionário Financeiro", email: "user@fin.com", role: 'employee', department: DocumentDepartment.FINANCEIRO },
 ];
 
+const ALL_USERS_STORAGE_KEY = "docflow-all-users";
+
 export default function LoginPage() {
-  const { login, isLoading: authLoading, user: currentUser } = useAuth();
+  const { login, isLoading: authLoading } = useAuth();
   const [selectedUserEmail, setSelectedUserEmail] = useState<string>('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<LoggedInUser[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
+
+  useEffect(() => {
+    setIsLoadingUsers(true);
+    try {
+      const storedUsersString = localStorage.getItem(ALL_USERS_STORAGE_KEY);
+      if (storedUsersString) {
+        setAvailableUsers(JSON.parse(storedUsersString));
+      } else {
+        // Initialize localStorage if empty
+        const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID() }));
+        localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersWithIds));
+        setAvailableUsers(usersWithIds);
+      }
+    } catch (error) {
+      console.error("Failed to load users from localStorage", error);
+      // Fallback to initial mocks if localStorage is corrupt
+      const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID() }));
+      setAvailableUsers(usersWithIds);
+    }
+    setIsLoadingUsers(false);
+  }, []);
 
   const handleLogin = () => {
     if (!selectedUserEmail) {
-      // Basic error handling, can be improved with toast
       alert("Por favor, selecione um usuário para entrar.");
       return;
     }
     setIsLoggingIn(true);
-    const selectedUser = mockUsers.find(u => u.email === selectedUserEmail);
+    const selectedUser = availableUsers.find(u => u.email === selectedUserEmail);
     if (selectedUser) {
-      // Simulate API call delay
       setTimeout(() => {
-        login({ ...selectedUser, id: crypto.randomUUID() });
-        // Redirect is handled by AuthProvider
+        login(selectedUser); // login now expects a full LoggedInUser object with id
         setIsLoggingIn(false);
       }, 500);
     } else {
-      alert("Usuário selecionado inválido."); // Should not happen with select
+      alert("Usuário selecionado inválido.");
       setIsLoggingIn(false);
     }
   };
   
-  if (authLoading) {
+  if (authLoading || isLoadingUsers) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
-
-
-  // If user is already logged in (e.g. navigated back), AuthProvider will redirect.
-  // This page is mainly for users who are not logged in.
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-muted/40 p-4">
@@ -76,7 +95,7 @@ export default function LoginPage() {
                 <SelectValue placeholder="Escolha um perfil..." />
               </SelectTrigger>
               <SelectContent>
-                {mockUsers.map((user) => (
+                {availableUsers.map((user) => (
                   <SelectItem key={user.email} value={user.email}>
                     {user.name} ({user.email}) - {user.role === 'admin' ? 'Admin' : 'Funcionário'} ({user.department})
                   </SelectItem>
