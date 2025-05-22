@@ -1,22 +1,68 @@
 
+"use client"; // Convert to client component for auth check
+
+import { useEffect, useState } from 'react';
 import { getDocumentById } from "@/data/mock-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
-import { ArrowLeft, ExternalLink, Edit3, Folder, FileArchive, User, Building } from "lucide-react";
+import { ArrowLeft, ExternalLink, Edit3, Folder, FileArchive, User, Building, Loader2, ShieldAlert } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import type { DocumentSourceType } from "@/lib/types";
+import type { DocumentMetadata, DocumentSourceType } from "@/lib/types";
+import { DocumentDepartment } from '@/lib/types';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface DocumentDetailPageProps {
   params: { id: string };
 }
 
-export default async function DocumentDetailPage({ params }: DocumentDetailPageProps) {
-  const document = await getDocumentById(params.id);
+export default function DocumentDetailPage({ params }: DocumentDetailPageProps) {
+  const { user, isLoading: authIsLoading } = useAuth();
+  const router = useRouter();
+  const [document, setDocument] = useState<DocumentMetadata | null | undefined>(undefined); // undefined: loading, null: not found or access denied
+  const [isLoadingDoc, setIsLoadingDoc] = useState(true);
 
-  if (!document) {
+  useEffect(() => {
+    if (authIsLoading) return; // Wait for auth state
+
+    if (!user) {
+      router.push("/login"); // Should be handled by AuthProvider, but good fallback
+      return;
+    }
+
+    async function fetchDocument() {
+      setIsLoadingDoc(true);
+      const fetchedDocument = await getDocumentById(params.id);
+      if (!fetchedDocument) {
+        setDocument(null); // Triggers notFound later
+        setIsLoadingDoc(false);
+        return;
+      }
+
+      const userIsAdmin = user.department === DocumentDepartment.RECURSOS_HUMANOS;
+      if (!userIsAdmin && fetchedDocument.department !== user.department) {
+        setDocument(null); // Mark as not found for non-admins trying to access other dept docs
+      } else {
+        setDocument(fetchedDocument);
+      }
+      setIsLoadingDoc(false);
+    }
+
+    fetchDocument();
+  }, [params.id, user, authIsLoading, router]);
+
+
+  if (authIsLoading || isLoadingDoc || document === undefined) {
+    return (
+      <div className="container mx-auto py-10 flex justify-center items-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!document) { // Handles not found or access denied after checks
     notFound();
   }
 
@@ -38,6 +84,8 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
         return "Desconhecida";
     }
   };
+
+  const canEditThisDocument = user?.department === DocumentDepartment.RECURSOS_HUMANOS || user?.department === document.department;
 
   return (
     <div className="container mx-auto py-2">
@@ -148,18 +196,20 @@ export default async function DocumentDetailPage({ params }: DocumentDetailPageP
             <div>
               <h3 className="font-semibold text-foreground">Compartilhado Com:</h3>
               <ul className="list-disc list-inside text-muted-foreground">
-                {document.sharedWith.map(user => (
-                  <li key={user.email}>{user.email} ({getPermissionLabel(user.permission)})</li>
+                {document.sharedWith.map(u => (
+                  <li key={u.email}>{u.email} ({getPermissionLabel(u.permission)})</li>
                 ))}
               </ul>
             </div>
           )}
         </CardContent>
-        <CardFooter className="flex justify-end gap-2 pt-6">
-          <Link href={`/documents/${document.id}/edit`} passHref>
-             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground"><Edit3 className="mr-2 h-4 w-4" /> Editar Detalhes</Button>
-          </Link>
-        </CardFooter>
+        {canEditThisDocument && (
+          <CardFooter className="flex justify-end gap-2 pt-6">
+            <Link href={`/documents/${document.id}/edit`} passHref>
+              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground"><Edit3 className="mr-2 h-4 w-4" /> Editar Detalhes</Button>
+            </Link>
+          </CardFooter>
+        )}
       </Card>
     </div>
   );

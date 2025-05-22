@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -31,6 +31,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, ClipboardPaste, Building } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuth } from "@/contexts/AuthContext";
 
 const formSchema = z.object({
   name: z.string().min(3, {
@@ -39,7 +40,9 @@ const formSchema = z.object({
   type: z.nativeEnum(DocumentType, {
     errorMap: () => ({ message: "Por favor, selecione um tipo de documento." }),
   }),
-  department: z.nativeEnum(DocumentDepartment).optional(),
+  department: z.nativeEnum(DocumentDepartment, { // Department is mandatory
+    errorMap: () => ({ message: "Por favor, selecione um departamento." }),
+  }),
   sourceType: z.enum(["internal", "googleDocs", "local"],{
     errorMap: () => ({ message: "Por favor, selecione a fonte do documento." }),
   }),
@@ -72,7 +75,11 @@ interface EditDocumentFormProps {
 export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
   const { toast } = useToast();
   const router = useRouter();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
+
+  const isAdmin = user?.department === DocumentDepartment.RECURSOS_HUMANOS;
+  const canEditDepartment = isAdmin; // Only admin can change department
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -86,6 +93,15 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
       internalContent: existingDocument.internalContent || "",
     },
   });
+
+  // If user is not admin and their department doesn't match the doc's department, they shouldn't be here.
+  // This check should ideally happen on the page level before rendering the form.
+  useEffect(() => {
+    if (user && !isAdmin && user.department !== existingDocument.department) {
+        toast({title: "Acesso Negado", description: "Você não tem permissão para editar este documento.", variant: "destructive"});
+        router.push("/");
+    }
+  }, [user, isAdmin, existingDocument.department, router, toast]);
 
   const currentSourceType = form.watch("sourceType");
 
@@ -118,7 +134,7 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
       console.error("Falha ao colar da área de transferência:", error);
        let description = "Não foi possível acessar a área de transferência. Verifique as permissões do navegador ou tente colar manualmente.";
       if (error instanceof Error && error.name === 'NotAllowedError') {
-        description = "Permissão para acessar a área de transferência negada. Habilite nas configurações do seu navegador ou cole manually."
+        description = "Permissão para acessar a área de transferência negada. Habilite nas configurações do seu navegador ou cole manualmente."
       }
       toast({
         title: "Falha ao Colar",
@@ -129,14 +145,21 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
   }
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    if (!user) {
+      toast({ title: "Erro de Autenticação", description: "Usuário não logado.", variant: "destructive" });
+      return;
+    }
+    if (!isAdmin && user.department !== existingDocument.department) {
+      toast({ title: "Acesso Negado", description: "Você não pode editar documentos de outro departamento.", variant: "destructive" });
+      return;
+    }
+
     setIsSubmitting(true);
     const formData = new FormData();
     formData.append("id", existingDocument.id);
     formData.append("name", values.name);
     formData.append("type", values.type);
-    if (values.department) {
-      formData.append("department", values.department);
-    }
+    formData.append("department", values.department); // Department is now mandatory
     formData.append("sourceType", values.sourceType);
 
     if (values.sourceType === "googleDocs" && values.googleDocsId) {
@@ -148,7 +171,7 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
     if (values.sourceType === "internal" && values.internalContent) {
       formData.append("internalContent", values.internalContent);
     }
-
+    // Author doesn't change on edit for this simulation
 
     const result = await updateDocumentAction(formData);
     setIsSubmitting(false);
@@ -167,6 +190,16 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
         variant: "destructive",
       });
     }
+  }
+
+  if (!user) {
+     return (
+      <Card className="w-full max-w-2xl mx-auto shadow-lg p-6">
+        <CardTitle>Acesso Negado</CardTitle>
+        <CardDescription>Você precisa estar logado para editar documentos.</CardDescription>
+         <Button onClick={() => router.push('/login')} className="mt-4">Ir para Login</Button>
+      </Card>
+    );
   }
 
   return (
@@ -224,21 +257,32 @@ export function EditDocumentForm({ existingDocument }: EditDocumentFormProps) {
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Departamento/Local</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select 
+                      onValueChange={field.onChange} 
+                      value={field.value} 
+                      defaultValue={field.value}
+                      disabled={!canEditDepartment}
+                    >
                       <FormControl>
-                        <SelectTrigger>
+                        <SelectTrigger disabled={!canEditDepartment}>
                           <Building className="mr-2 h-4 w-4 text-muted-foreground" />
                           <SelectValue placeholder="Selecione um departamento" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Object.values(DocumentDepartment).map((dept) => (
-                          <SelectItem key={dept} value={dept}>
-                            {dept}
-                          </SelectItem>
-                        ))}
+                        {canEditDepartment ? (
+                          Object.values(DocumentDepartment).map((dept) => (
+                            <SelectItem key={dept} value={dept}>
+                              {dept}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          // Show only the existing doc's department if not editable
+                          existingDocument.department && <SelectItem value={existingDocument.department}>{existingDocument.department}</SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
+                    {!canEditDepartment && <FormDescription>O departamento deste documento não pode ser alterado por você.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}

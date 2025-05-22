@@ -14,13 +14,13 @@ import { revalidatePath } from "next/cache";
 const CreateDocumentSchema = z.object({
   name: z.string().min(3, "O nome do documento deve ter pelo menos 3 caracteres."),
   type: z.nativeEnum(DocumentType),
-  department: z.nativeEnum(DocumentDepartment).optional(),
+  department: z.nativeEnum(DocumentDepartment), // Department is now mandatory
   sourceType: z.enum(["internal", "googleDocs", "local"]),
   googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
   internalContent: z.string().optional(),
   authorName: z.string().optional(),
-  authorEmail: z.string().optional(),
+  authorEmail: z.string().email().optional(),
 }).refine(data => {
   if (data.sourceType === "local" && (!data.localFileIdentifier || data.localFileIdentifier.trim() === "")) {
     return false;
@@ -51,6 +51,7 @@ export async function createDocumentAction(formData: FormData) {
     authorName: formData.get("authorName") || undefined,
     authorEmail: formData.get("authorEmail") || undefined,
   };
+
   const validatedFields = CreateDocumentSchema.safeParse(rawFormData);
 
   if (!validatedFields.success) {
@@ -72,7 +73,12 @@ export async function createDocumentAction(formData: FormData) {
   } = validatedFields.data;
 
   const typePrefix = type.substring(0, 3).toUpperCase();
+  // Numbering should be unique across all documents, not just per type or per department, for simplicity
+  // Or, if per type:
   const countForType = userDocuments.filter(doc => doc.type === type).length + 1;
+  // Or if per department and type (more complex to manage without DB sequence):
+  // const countForDeptAndType = userDocuments.filter(doc => doc.type === type && doc.department === department).length + 1;
+  
   const paddedCount = countForType.toString().padStart(3, '0');
   const newNumber = `${typePrefix}-${new Date().getFullYear()}-${paddedCount}`;
 
@@ -80,7 +86,7 @@ export async function createDocumentAction(formData: FormData) {
     id: crypto.randomUUID(),
     name,
     type,
-    department,
+    department, // Save the department
     number: newNumber,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -148,7 +154,7 @@ const EditDocumentFormSchema = z.object({
   type: z.nativeEnum(DocumentType, {
     errorMap: () => ({ message: "Por favor, selecione um tipo de documento válido." }),
   }),
-  department: z.nativeEnum(DocumentDepartment).optional(),
+  department: z.nativeEnum(DocumentDepartment), // Department is mandatory
   sourceType: z.enum(["internal", "googleDocs", "local"]),
   googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
@@ -193,6 +199,11 @@ export async function updateDocumentAction(formData: FormData) {
 
   const { id, name, type, department, sourceType, googleDocsId, localFileIdentifier, internalContent } = validatedFields.data;
 
+  // Ensure department is always present
+  if (!department) {
+     return { error: "Departamento é obrigatório." };
+  }
+
   const updates: Partial<DocumentMetadata> = { name, type, department, sourceType: sourceType as DocumentSourceType };
 
   if (sourceType === "googleDocs" && googleDocsId) {
@@ -203,11 +214,11 @@ export async function updateDocumentAction(formData: FormData) {
     updates.localFileIdentifier = localFileIdentifier;
     updates.googleDocsId = undefined; 
     updates.internalContent = undefined;
-  } else if (sourceType === "internal") { // internal
+  } else if (sourceType === "internal") { 
     updates.googleDocsId = undefined;
     updates.localFileIdentifier = undefined;
-    updates.internalContent = internalContent;
-  } else { // Should not happen if sourceType is always one of the three, but as a fallback
+    updates.internalContent = internalContent; // Can be empty string or content
+  } else { 
     updates.googleDocsId = undefined;
     updates.localFileIdentifier = undefined;
     updates.internalContent = undefined;

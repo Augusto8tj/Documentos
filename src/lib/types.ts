@@ -36,14 +36,23 @@ export interface DocumentMetadata {
   internalContent?: string; // Conteúdo para documentos internos
   sharedWith?: { email: string; permission: "view" | "edit" }[];
   author?: { name: string; email: string };
-  department?: DocumentDepartment; // Novo campo para departamento/local
+  department?: DocumentDepartment; 
 }
 
 export interface TemplateMetadata {
   id: string;
   name: string;
   description: string;
-  baseContentPreview: string; // Short preview or instruction
+  baseContentPreview: string; 
   defaultDocumentType: DocumentType;
-  // In a real scenario, baseContent might be more complex (e.g., HTML, Markdown, or an ID to a GDoc template)
+}
+
+export type UserRole = 'admin' | 'employee';
+
+export interface LoggedInUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+  department: DocumentDepartment; // Admin (RH) also belongs to RH department for document creation
 }
