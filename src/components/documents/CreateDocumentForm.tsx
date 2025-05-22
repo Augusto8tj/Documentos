@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -24,7 +24,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { DocumentType, type TemplateMetadata, DocumentDepartment, type LoggedInUser } from "@/lib/types";
+import type { TemplateMetadata, LoggedInUser, DocumentTypeValue, DocumentDepartmentValue } from "@/lib/types";
+import { ADMIN_DEPARTMENT, DEFAULT_DOCUMENT_TYPES, DEFAULT_DOCUMENT_DEPARTMENTS } from "@/lib/types";
 import { createDocumentAction } from "@/lib/actions";
 import { useToast } from "@/hooks/use-toast";
 import { useRouter } from "next/navigation";
@@ -32,16 +33,30 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Loader2, Info, ClipboardPaste, Building } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const formSchema = z.object({
+
+const localStorageDocumentTypesKey = "docflow-document-types";
+const localStorageDepartmentsKey = "docflow-document-departments";
+
+const createFormSchema = (
+  availableTypes: DocumentTypeValue[], 
+  availableDepartments: DocumentDepartmentValue[],
+  userDepartments?: DocumentDepartmentValue[] // For non-admin users with multiple departments
+) => z.object({
   name: z.string().min(3, {
     message: "O nome do documento deve ter pelo menos 3 caracteres.",
   }),
-  type: z.nativeEnum(DocumentType, {
-    errorMap: () => ({ message: "Por favor, selecione um tipo de documento." }),
+  type: z.string().refine(val => availableTypes.includes(val), {
+    message: "Por favor, selecione um tipo de documento válido.",
   }),
-  department: z.nativeEnum(DocumentDepartment, { // Department is now mandatory
-    errorMap: () => ({ message: "Por favor, selecione um departamento." }),
+  department: z.string().refine(val => {
+    if (userDepartments) { // Non-admin with multiple departments
+      return userDepartments.includes(val);
+    }
+    return availableDepartments.includes(val); // Admin or non-admin with single (pre-filled) dept
+  }, {
+    message: "Por favor, selecione um departamento válido.",
   }),
   sourceType: z.enum(["internal", "googleDocs", "local"], {
     errorMap: () => ({ message: "Por favor, selecione a fonte do documento." }),
@@ -74,54 +89,87 @@ interface CreateDocumentFormProps {
 export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps) {
   const { toast } = useToast();
   const router = useRouter();
-  const { user } = useAuth(); // Get current user
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = React.useState(false);
 
-  const isAdmin = user?.department === DocumentDepartment.RECURSOS_HUMANOS;
+  const [availableDocumentTypes, setAvailableDocumentTypes] = useState<DocumentTypeValue[]>(DEFAULT_DOCUMENT_TYPES);
+  const [availableDepartments, setAvailableDepartments] = useState<DocumentDepartmentValue[]>(DEFAULT_DOCUMENT_DEPARTMENTS);
+  const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      name: initialTemplate ? `Documento Baseado em: ${initialTemplate.name}` : "",
-      type: initialTemplate ? initialTemplate.defaultDocumentType : undefined,
-      department: !isAdmin && user ? user.department : undefined, // Pre-fill for non-admins
-      sourceType: "internal",
-      googleDocsId: "",
-      localFileIdentifier: "",
-      internalContent: initialTemplate?.baseContentPreview || "",
-    },
+  const isAdmin = useMemo(() => (user?.departments || []).includes(ADMIN_DEPARTMENT), [user]);
+  
+  const userSelectableDepartments = useMemo(() => {
+    if (!user) return [];
+    if (isAdmin) return availableDepartments; // Admin can choose any loaded department
+    return user.departments || []; // Non-admin can choose from their assigned departments
+  }, [user, isAdmin, availableDepartments]);
+
+
+  useEffect(() => {
+    setIsLoadingConfig(true);
+    try {
+      const storedTypes = localStorage.getItem(localStorageDocumentTypesKey);
+      setAvailableDocumentTypes(storedTypes ? JSON.parse(storedTypes) : [...DEFAULT_DOCUMENT_TYPES]);
+
+      const storedDepts = localStorage.getItem(localStorageDepartmentsKey);
+      setAvailableDepartments(storedDepts ? JSON.parse(storedDepts) : [...DEFAULT_DOCUMENT_DEPARTMENTS]);
+    } catch (error) {
+      console.error("Erro ao carregar configurações do localStorage:", error);
+      setAvailableDocumentTypes([...DEFAULT_DOCUMENT_TYPES]);
+      setAvailableDepartments([...DEFAULT_DOCUMENT_DEPARTMENTS]);
+    } finally {
+      setIsLoadingConfig(false);
+    }
+  }, []);
+  
+  const currentSchema = useMemo(() => {
+      const departmentsForSchema = isAdmin ? availableDepartments : userSelectableDepartments;
+      return createFormSchema(availableDocumentTypes, departmentsForSchema, !isAdmin ? userSelectableDepartments : undefined);
+  }, [availableDocumentTypes, availableDepartments, isAdmin, userSelectableDepartments]);
+
+
+  const form = useForm<z.infer<ReturnType<typeof createFormSchema>>>({
+    resolver: zodResolver(currentSchema),
+    // Default values are set in a useEffect below to ensure they use loaded config
   });
   
   const currentSourceType = form.watch("sourceType");
 
   useEffect(() => {
-    // Reset form if template changes or user changes affecting department
-    const defaultDept = !isAdmin && user ? user.department : form.getValues("department");
-    if (initialTemplate) {
-      form.reset({
-        name: `Documento Baseado em: ${initialTemplate.name}`,
-        type: initialTemplate.defaultDocumentType,
-        department: defaultDept,
-        sourceType: currentSourceType || "internal", 
-        googleDocsId: "",
-        localFileIdentifier: "",
-        internalContent: (currentSourceType === "internal" || (!currentSourceType && "internal" === "internal")) 
+    if (isLoadingConfig || !user) return; // Wait for config and user
+
+    let defaultDept: DocumentDepartmentValue | undefined = undefined;
+    if (!isAdmin) {
+        if (user.departments && user.departments.length > 0) {
+            defaultDept = user.departments[0]; // Pre-fill with the first one for non-admins
+        }
+    } else {
+      // For admin, if availableDepartments has been loaded and contains ADMIN_DEPARTMENT, set it as default
+      // Otherwise, set the first available department, or undefined if none
+      if(availableDepartments.includes(ADMIN_DEPARTMENT)) {
+        defaultDept = ADMIN_DEPARTMENT;
+      } else if (availableDepartments.length > 0) {
+        defaultDept = availableDepartments[0];
+      }
+    }
+
+    const defaultType = initialTemplate 
+        ? (availableDocumentTypes.includes(initialTemplate.defaultDocumentType) ? initialTemplate.defaultDocumentType : (availableDocumentTypes.length > 0 ? availableDocumentTypes[0] : undefined))
+        : (availableDocumentTypes.length > 0 ? availableDocumentTypes[0] : undefined);
+
+    form.reset({
+      name: initialTemplate ? `Documento Baseado em: ${initialTemplate.name}` : "",
+      type: defaultType,
+      department: defaultDept,
+      sourceType: form.getValues("sourceType") || "internal",
+      googleDocsId: "",
+      localFileIdentifier: "",
+      internalContent: (form.getValues("sourceType") === "internal" || (!form.getValues("sourceType") && "internal" === "internal")) && initialTemplate
                          ? initialTemplate.baseContentPreview 
                          : "",
-      });
-    } else {
-       form.reset({
-        name: form.getValues("name") || "", // Preserve if user already typed
-        type: form.getValues("type"),
-        department: defaultDept,
-        sourceType: currentSourceType || "internal",
-        googleDocsId: "",
-        localFileIdentifier: "",
-        internalContent: form.getValues("internalContent") || "", // Preserve if typed
-      });
-    }
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialTemplate, form, user, isAdmin]);
+  }, [initialTemplate, user, isAdmin, isLoadingConfig, availableDocumentTypes, availableDepartments, form.reset]); // Added form.reset to dep array
 
 
   useEffect(() => {
@@ -176,7 +224,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
   }
 
 
-  async function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<ReturnType<typeof createFormSchema>>) {
     if (!user) {
       toast({ title: "Erro de Autenticação", description: "Usuário não logado.", variant: "destructive" });
       return;
@@ -185,7 +233,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
     const formData = new FormData();
     formData.append("name", values.name);
     formData.append("type", values.type);
-    formData.append("department", values.department); // Department is now mandatory
+    formData.append("department", values.department); 
     formData.append("sourceType", values.sourceType);
     
     if (values.sourceType === "googleDocs" && values.googleDocsId) {
@@ -202,7 +250,6 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
       formData.append("templateContentPreview", initialTemplate.baseContentPreview);
     }
 
-    // Author info from logged-in user
     formData.append("authorName", user.name);
     formData.append("authorEmail", user.email);
 
@@ -211,7 +258,13 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
 
     if (result.success && result.documentId) {
       let description = `Documento "${values.name}" criado. Você será redirecionado para a página de detalhes.`;
-      toast({ title: "Documento Criado", description, duration: 7000, });
+      if (values.sourceType === "googleDocs" && initialTemplate) {
+        description += " Lembre-se de criar o documento no Google Docs e usar o ID fornecido aqui.";
+      } else if (values.sourceType === "googleDocs" && !values.googleDocsId && !initialTemplate) {
+        // This case shouldn't happen due to Zod validation, but as a fallback message
+        description += " Lembre-se de editar este documento no sistema para adicionar o ID do Google Doc.";
+      }
+      toast({ title: "Documento Criado", description, duration: 7000 });
       router.push(`/documents/${result.documentId}`); 
     } else {
       toast({
@@ -222,12 +275,24 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
     }
   }
   
-  if (!user) { // Should be caught by AuthProvider, but good as a fallback
+  if (isLoadingConfig || !user) { 
     return (
-      <Card className="w-full max-w-2xl mx-auto shadow-lg p-6">
-        <CardTitle>Acesso Negado</CardTitle>
-        <CardDescription>Você precisa estar logado para criar documentos.</CardDescription>
-        <Button onClick={() => router.push('/login')} className="mt-4">Ir para Login</Button>
+      <Card className="w-full max-w-2xl mx-auto shadow-lg">
+        <CardHeader>
+          <Skeleton className="h-8 w-3/4" />
+          <Skeleton className="h-4 w-1/2" />
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <Skeleton className="h-10 w-full" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-10 w-full" />
+          </div>
+          <Skeleton className="h-20 w-full" />
+        </CardContent>
+        <CardFooter className="flex justify-end pt-6">
+          <Skeleton className="h-10 w-32" />
+        </CardFooter>
       </Card>
     );
   }
@@ -287,7 +352,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {Object.values(DocumentType).map((type) => (
+                        {availableDocumentTypes.map((type) => (
                           <SelectItem key={type} value={type}>
                             {type}
                           </SelectItem>
@@ -308,27 +373,24 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
                       onValueChange={field.onChange} 
                       value={field.value} 
                       defaultValue={field.value}
-                      disabled={!isAdmin}
+                      disabled={!isAdmin && user && user.departments && user.departments.length === 1}
                     >
                       <FormControl>
-                        <SelectTrigger disabled={!isAdmin}>
+                        <SelectTrigger disabled={!isAdmin && user && user.departments && user.departments.length === 1}>
                           <Building className="mr-2 h-4 w-4 text-muted-foreground" />
                           <SelectValue placeholder="Selecione um departamento" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {isAdmin ? (
-                          Object.values(DocumentDepartment).map((dept) => (
-                            <SelectItem key={dept} value={dept}>
-                              {dept}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          user && <SelectItem value={user.department}>{user.department}</SelectItem>
-                        )}
+                        {userSelectableDepartments.map((dept) => (
+                          <SelectItem key={dept} value={dept}>
+                            {dept}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
-                    {!isAdmin && <FormDescription>Departamento definido pelo seu perfil.</FormDescription>}
+                    {!isAdmin && user && user.departments && user.departments.length === 1 && <FormDescription>Departamento definido pelo seu perfil.</FormDescription>}
+                    {!isAdmin && user && user.departments && user.departments.length > 1 && <FormDescription>Escolha um dos seus departamentos.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -483,7 +545,7 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
             )}
           </CardContent>
           <CardFooter className="flex justify-end pt-6">
-            <Button type="submit" disabled={isSubmitting} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+            <Button type="submit" disabled={isSubmitting || isLoadingConfig} className="bg-primary hover:bg-primary/90 text-primary-foreground">
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Criar Documento
             </Button>
@@ -493,3 +555,5 @@ export function CreateDocumentForm({ initialTemplate }: CreateDocumentFormProps)
     </Card>
   );
 }
+
+    
