@@ -15,7 +15,7 @@ export const mockDocuments: DocumentMetadata[] = [
     googleDocsId: "mockGoogleDocId1",
     sharedWith: [{ email: "colleague1@example.com", permission: "edit" }],
     status: "Published",
-    author: { name: "Usuário Exemplo", email: "usuario@exemplo.com" },
+    author: { name: "Admin RH", email: "admin@rh.com" },
     department: "Tecnologia da Informação" as DocumentDepartmentValue,
   },
   {
@@ -28,7 +28,7 @@ export const mockDocuments: DocumentMetadata[] = [
     sourceType: "internal",
     internalContent: "Este é o conteúdo do memorando sobre a reunião semanal.\n\nTópicos a serem discutidos:\n1. Revisão das metas do último sprint.\n2. Planejamento para o próximo sprint.\n3. Feedback dos clientes.",
     status: "Draft",
-    author: { name: "Ana Silva", email: "ana.silva@example.com" },
+    author: { name: "Ana Silva", email: "ana@example.com" },
     department: "Administração" as DocumentDepartmentValue,
   },
   {
@@ -45,7 +45,7 @@ export const mockDocuments: DocumentMetadata[] = [
       { email: "hr@example.com", permission: "view" },
     ],
     status: "Published",
-    author: { name: "Admin RH", email: "admin@rh.com" }, // Adicionando um autor
+    author: { name: "Admin RH", email: "admin@rh.com" }, 
     department: "Recursos Humanos" as DocumentDepartmentValue,
   },
   {
@@ -71,7 +71,7 @@ export const mockDocuments: DocumentMetadata[] = [
     sourceType: "internal",
     internalContent: "DECRETO Nº DEC-2024-010\n\nConsiderando a data comemorativa de Corpus Christi,\n\nArt. 1º Fica decretado ponto facultativo nas repartições públicas municipais no dia XX de Mês de XXXX.\nArt. 2º Este decreto entra em vigor na data de sua publicação.",
     status: "Published",
-    author: { name: "Prefeito Municipal", email: "prefeito@example.com" }, // Adicionando um autor
+    author: { name: "Admin RH", email: "admin@rh.com" }, 
     department: "Gabinete" as DocumentDepartmentValue,
   },
 ];
@@ -107,7 +107,6 @@ export const updateDocumentMetadata = (
     };
 
     // If updates don't include an author, restore the existing one.
-    // This handles cases where the update might inadvertently clear the author.
     if (updates.author === undefined && existingAuthor !== undefined) {
       userDocuments[docIndex].author = existingAuthor;
     }
@@ -122,11 +121,10 @@ export const updateDocumentMetadata = (
     } else if (updates.sourceType === "internal") {
       userDocuments[docIndex].googleDocsId = undefined;
       userDocuments[docIndex].localFileIdentifier = undefined;
-      // internalContent is set via 'updates' if provided, or remains if not in 'updates'
       if (updates.internalContent !== undefined) {
         userDocuments[docIndex].internalContent = updates.internalContent;
       }
-    } else { // If sourceType is not in updates, but other fields are, ensure internalContent is cleared if it's not internal
+    } else { 
         if(userDocuments[docIndex].sourceType !== 'internal') {
             userDocuments[docIndex].internalContent = undefined;
         }
@@ -145,6 +143,6 @@ export const getDocuments = async (): Promise<DocumentMetadata[]> => {
 };
 
 export const getDocumentById = async (id: string): Promise<DocumentMetadata | undefined> => {
-  await new Promise(resolve => setTimeout(resolve, 200));
+  // await new Promise(resolve => setTimeout(resolve, 200)); // Removed artificial delay
   return userDocuments.find(doc => doc.id === id);
 };
