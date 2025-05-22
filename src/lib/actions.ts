@@ -55,6 +55,7 @@ export async function createDocumentAction(formData: FormData) {
   const validatedFields = CreateDocumentSchema.safeParse(rawFormData);
 
   if (!validatedFields.success) {
+    console.error("Validation Errors:", validatedFields.error.flatten().fieldErrors);
     return {
       error: "Dados inválidos. " + JSON.stringify(validatedFields.error.flatten().fieldErrors),
     };
@@ -72,10 +73,28 @@ export async function createDocumentAction(formData: FormData) {
     authorEmail 
   } = validatedFields.data;
 
-  const countForAllDocs = userDocuments.length + 1;
+  const currentYear = new Date().getFullYear();
+  const documentsOfTheSameTypeAndYear = userDocuments.filter(
+    doc => doc.type === type && new Date(doc.createdAt).getFullYear() === currentYear
+  );
+
+  let maxNumericPart = 0;
+  documentsOfTheSameTypeAndYear.forEach(doc => {
+    const parts = doc.number.split('-'); // Formato esperado: PREFIX-YEAR-SEQUENCE
+    if (parts.length === 3) {
+      const numericPartString = parts[2];
+      const numericPart = parseInt(numericPartString, 10);
+      if (!isNaN(numericPart) && numericPart > maxNumericPart) {
+        maxNumericPart = numericPart;
+      }
+    }
+  });
+
+  const newNumericPart = maxNumericPart + 1;
   const typePrefix = type.substring(0, Math.min(type.length, 3)).toUpperCase();
-  const paddedCount = countForAllDocs.toString().padStart(3, '0');
-  const newNumber = `${typePrefix}-${new Date().getFullYear()}-${paddedCount}`;
+  const paddedNewNumericPart = newNumericPart.toString().padStart(3, '0');
+  const newNumber = `${typePrefix}-${currentYear}-${paddedNewNumericPart}`;
+
 
   const newDocument: DocumentMetadata = {
     id: crypto.randomUUID(),
@@ -146,7 +165,7 @@ const EditDocumentFormSchema = z.object({
   id: z.string().min(1, "ID do documento é obrigatório."),
   name: z.string().min(3, "O nome do documento deve ter pelo menos 3 caracteres."),
   type: z.string().min(1, "Por favor, selecione um tipo de documento válido."),
-  department: z.string().min(1, "Por favor, selecione um departamento."),
+  department: z.string().min(1, "Por favor, selecione um departamento válido."),
   sourceType: z.enum(["internal", "googleDocs", "local"]),
   googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
@@ -183,6 +202,7 @@ export async function updateDocumentAction(formData: FormData) {
   const validatedFields = EditDocumentFormSchema.safeParse(rawFormData);
 
   if (!validatedFields.success) {
+    console.error("Validation Errors (Edit):", validatedFields.error.flatten().fieldErrors);
     return {
       error: "Dados inválidos. " + JSON.stringify(validatedFields.error.flatten().fieldErrors),
     };
