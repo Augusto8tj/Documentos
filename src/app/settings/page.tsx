@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button, buttonVariants } from "@/components/ui/button"; // Added buttonVariants
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -56,7 +56,7 @@ import {
 
 const profileFormSchema = z.object({
   name: z.string().min(2, { message: "O nome deve ter pelo menos 2 caracteres." }).max(50, { message: "O nome não pode exceder 50 caracteres." }),
-  email: z.string().email({ message: "Por favor, insira um endereço de e-mail válido." }),
+  // Email is not editable here, it's tied to the login identity
 });
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
@@ -74,7 +74,7 @@ type NewUserFormValues = z.infer<typeof newUserFormSchema>;
 type Theme = "light" | "dark" | "system" | "feminine" | "professional" | "playful" | "serif-classic";
 
 const localStorageThemeKey = "docflow-active-theme"; 
-const localStorageProfileNameKey = "docflow-profile-name";
+const localStorageProfileNameKeyPrefix = "docflow-profile-name-"; // Prefix by email
 const ALL_USERS_STORAGE_KEY = "docflow-all-users";
 const localStorageDocumentTypesKey = "docflow-document-types";
 const localStorageDepartmentsKey = "docflow-document-departments";
@@ -82,7 +82,7 @@ const localStorageDepartmentsKey = "docflow-document-departments";
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const { user: loggedInUser, login: updateAuthContextUser } = useAuth();
+  const { user: loggedInUser, login: updateAuthContextUser, isLoading: authIsLoading } = useAuth();
   const [isSubmittingProfile, setIsSubmittingProfile] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState<Theme>("system");
 
@@ -106,7 +106,7 @@ export default function SettingsPage() {
     resolver: zodResolver(profileFormSchema),
     defaultValues: {
       name: "",
-      email: "",
+      // email will be set from loggedInUser but disabled
     },
   });
 
@@ -148,28 +148,28 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (loggedInUser) {
-      const storedProfileName = localStorage.getItem(localStorageProfileNameKey);
+      const storedProfileName = localStorage.getItem(`${localStorageProfileNameKeyPrefix}${loggedInUser.email}`);
       profileForm.reset({
         name: storedProfileName || loggedInUser.name,
-        email: loggedInUser.email,
       });
     }
   }, [loggedInUser, profileForm]);
 
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin && !authIsLoading) { // Ensure admin check happens after auth is resolved
       try {
         const storedUsersString = localStorage.getItem(ALL_USERS_STORAGE_KEY);
         if (storedUsersString) {
            const usersFromStorage: LoggedInUser[] = JSON.parse(storedUsersString);
            const usersWithDefaultsEnsured = usersFromStorage.map(u => ({ 
             ...u, 
-            password: u.password || "123",
+            password: u.password || "123", // Ensure password field exists
             departments: Array.isArray(u.departments) ? u.departments : (typeof u.departments === 'string' ? [u.departments as DocumentDepartmentValue] : [])
            }));
            setManageableUsers(usersWithDefaultsEnsured);
         } else {
+          // Initialize with mock users if localStorage is empty
           const usersWithIdsAndArrayDepartments = initialMockUsers.map(u => ({ 
             ...u, 
             id: crypto.randomUUID(),
@@ -181,6 +181,7 @@ export default function SettingsPage() {
         }
       } catch (error) {
         console.error("Erro ao carregar usuários gerenciáveis:", error);
+        // Fallback to initial mocks if localStorage is corrupt or error occurs
         const usersWithIdsAndArrayDepartments = initialMockUsers.map(u => ({ 
           ...u, 
           id: crypto.randomUUID(),
@@ -190,16 +191,28 @@ export default function SettingsPage() {
         setManageableUsers(usersWithIdsAndArrayDepartments as LoggedInUser[]); 
       }
     }
-  }, [isAdmin]);
+  }, [isAdmin, authIsLoading]); // Rerun if isAdmin or authIsLoading changes
 
   const handleProfileSubmit = (values: ProfileFormValues) => {
     setIsSubmittingProfile(true);
+    if (!loggedInUser) {
+        toast({title: "Erro", description: "Usuário não logado.", variant: "destructive"});
+        setIsSubmittingProfile(false);
+        return;
+    }
     try {
-      localStorage.setItem(localStorageProfileNameKey, values.name);
-      if (loggedInUser) {
-        const updatedUser: LoggedInUser = { ...loggedInUser, name: values.name, email: loggedInUser.email }; 
-        updateAuthContextUser(updatedUser); 
+      localStorage.setItem(`${localStorageProfileNameKeyPrefix}${loggedInUser.email}`, values.name);
+      const updatedUser: LoggedInUser = { ...loggedInUser, name: values.name }; 
+      updateAuthContextUser(updatedUser); 
+      
+      // Also update the name in the all-users list in localStorage if the admin is editing their own profile
+      const currentUsers = JSON.parse(localStorage.getItem(ALL_USERS_STORAGE_KEY) || "[]") as LoggedInUser[];
+      const updatedUsersList = currentUsers.map(u => u.email === loggedInUser.email ? { ...u, name: values.name } : u);
+      localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsersList));
+      if(isAdmin){ // If admin updated their own name, reflect in manageableUsers state
+        setManageableUsers(prev => prev.map(u => u.email === loggedInUser.email ? { ...u, name: values.name } : u));
       }
+
       toast({
         title: "Perfil Atualizado",
         description: "Suas informações de perfil foram salvas.",
@@ -264,8 +277,9 @@ export default function SettingsPage() {
           } else {
             newDepartments = currentDepartments.filter(dept => dept !== departmentValue);
           }
+          // Admin (RH) must always have ADMIN_DEPARTMENT
           if (user.role === UserRole.ADMIN && user.email === loggedInUser?.email && !newDepartments.includes(ADMIN_DEPARTMENT)) {
-            newDepartments.push(ADMIN_DEPARTMENT);
+            newDepartments.push(ADMIN_DEPARTMENT); 
           }
           return { ...user, departments: newDepartments };
         }
@@ -296,28 +310,36 @@ export default function SettingsPage() {
 
   const handleAddNewUser = (values: NewUserFormValues) => {
     setIsProcessingUserAction(true);
-    const existingUser = manageableUsers.find(u => u.email === values.newUserEmail);
-    if (existingUser) {
-      toast({ title: "Erro ao Adicionar", description: "Usuário com este e-mail já existe.", variant: "destructive" });
+    try {
+      const existingUser = manageableUsers.find(u => u.email === values.newUserEmail);
+      if (existingUser) {
+        toast({ title: "Erro ao Adicionar", description: "Usuário com este e-mail já existe.", variant: "destructive" });
+        setIsProcessingUserAction(false);
+        return;
+      }
+
+      const newUser: LoggedInUser = {
+        id: crypto.randomUUID(),
+        name: values.newUserName,
+        email: values.newUserEmail,
+        password: values.newUserPassword,
+        role: values.newUserRole,
+        departments: values.newUserRole === UserRole.ADMIN 
+                      ? Array.from(new Set([...values.newUserDepartments, ADMIN_DEPARTMENT])) // Ensure Admin has ADMIN_DEPARTMENT
+                      : values.newUserDepartments,
+      };
+
+      const updatedUsers = [...manageableUsers, newUser];
+      setManageableUsers(updatedUsers);
+      localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
+      toast({ title: "Usuário Adicionado", description: `${values.newUserName} foi adicionado ao sistema.` });
+      newUserForm.reset();
+    } catch (error) {
+      console.error("Erro ao adicionar novo usuário:", error);
+      toast({ title: "Erro ao Adicionar", description: "Não foi possível adicionar o usuário.", variant: "destructive" });
+    } finally {
       setIsProcessingUserAction(false);
-      return;
     }
-
-    const newUser: LoggedInUser = {
-      id: crypto.randomUUID(),
-      name: values.newUserName,
-      email: values.newUserEmail,
-      password: values.newUserPassword,
-      role: values.newUserRole,
-      departments: values.newUserDepartments,
-    };
-
-    const updatedUsers = [...manageableUsers, newUser];
-    setManageableUsers(updatedUsers);
-    localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
-    toast({ title: "Usuário Adicionado", description: `${values.newUserName} foi adicionado ao sistema.` });
-    newUserForm.reset();
-    setIsProcessingUserAction(false);
   };
 
   const handleResetUserPassword = (userId: string) => {
@@ -329,11 +351,17 @@ export default function SettingsPage() {
     }
     
     setIsProcessingUserAction(true);
-    const updatedUsers = manageableUsers.map(u => u.id === userId ? { ...u, password: newPassword } : u);
-    setManageableUsers(updatedUsers);
-    localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
-    toast({ title: "Senha Resetada", description: "A senha do usuário foi atualizada." });
-    setIsProcessingUserAction(false);
+    try {
+      const updatedUsers = manageableUsers.map(u => u.id === userId ? { ...u, password: newPassword } : u);
+      setManageableUsers(updatedUsers);
+      localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
+      toast({ title: "Senha Resetada", description: "A senha do usuário foi atualizada." });
+    } catch (error) {
+      console.error("Erro ao resetar senha e salvar no localStorage:", error);
+      toast({ title: "Erro ao Salvar", description: "Não foi possível atualizar a senha no armazenamento local.", variant: "destructive" });
+    } finally {
+      setIsProcessingUserAction(false);
+    }
   };
 
   const handleDeleteUser = (userId: string, userName: string) => {
@@ -343,12 +371,17 @@ export default function SettingsPage() {
     }
     
     setIsProcessingUserAction(true);
-    const updatedUsers = manageableUsers.filter(u => u.id !== userId);
-    setManageableUsers(updatedUsers);
-    localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
-    toast({ title: "Usuário Excluído", description: `${userName} foi removido do sistema.` });
-    setIsProcessingUserAction(false);
-    
+    try {
+      const updatedUsers = manageableUsers.filter(u => u.id !== userId);
+      setManageableUsers(updatedUsers);
+      localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
+      toast({ title: "Usuário Excluído", description: `${userName} foi removido do sistema.` });
+    } catch (error) {
+      console.error("Erro ao excluir usuário:", error);
+      toast({ title: "Erro ao Excluir", description: "Não foi possível remover o usuário.", variant: "destructive" });
+    } finally {
+      setIsProcessingUserAction(false);
+    }
   };
 
 
@@ -385,7 +418,7 @@ export default function SettingsPage() {
       toast({ title: "Local Duplicado", description: "Este local/departamento já existe.", variant: "destructive" });
       return;
     }
-     if (newDepartment.trim() === ADMIN_DEPARTMENT) {
+     if (newDepartment.trim().toLowerCase() === ADMIN_DEPARTMENT.toLowerCase()) { // Case-insensitive check
       toast({ title: "Local Inválido", description: `O local/departamento "${ADMIN_DEPARTMENT}" é reservado para o administrador.`, variant: "destructive" });
       return;
     }
@@ -405,10 +438,19 @@ export default function SettingsPage() {
   };
 
 
-  if (!loggedInUser || isLoadingConfig) {
+  if (authIsLoading || isLoadingConfig) { 
     return (
       <div className="container mx-auto py-8 space-y-8 flex justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
+      </div>
+    );
+  }
+  
+  if (!loggedInUser) {
+    return (
+      <div className="container mx-auto py-8 space-y-8 text-center">
+        <p>Você precisa estar logado para acessar as configurações.</p>
+         <Button onClick={() => router.push('/login')}>Ir para Login</Button>
       </div>
     );
   }
@@ -444,26 +486,17 @@ export default function SettingsPage() {
                   </FormItem>
                 )}
               />
-              <FormField
-                control={profileForm.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>E-mail (do perfil de login)</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="seu.email@exemplo.com" {...field} disabled />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <FormItem>
+                <FormLabel>E-mail (do perfil de login)</FormLabel>
+                <Input value={loggedInUser.email} disabled />
+              </FormItem>
               <FormItem>
                 <FormLabel>Departamento(s)</FormLabel>
                 <Input value={(loggedInUser.departments || []).join(', ')} disabled />
               </FormItem>
                <FormItem>
                 <FormLabel>Papel</FormLabel>
-                <Input value={loggedInUser.role === UserRole.ADMIN ? 'Administrador (Recursos Humanos)' : 'Funcionário'} disabled />
+                <Input value={loggedInUser.role === UserRole.ADMIN ? 'Administrador' : 'Funcionário'} disabled />
               </FormItem>
             </CardContent>
             <CardFooter className="border-t pt-6 flex justify-end">
@@ -561,7 +594,15 @@ export default function SettingsPage() {
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Papel</FormLabel>
-                          <Select onValueChange={field.onChange} value={field.value}>
+                          <Select 
+                            onValueChange={(value) => {
+                              field.onChange(value as UserRoleValue);
+                              if (value === UserRole.ADMIN && !newUserForm.getValues("newUserDepartments").includes(ADMIN_DEPARTMENT)) {
+                                newUserForm.setValue("newUserDepartments", [...newUserForm.getValues("newUserDepartments"), ADMIN_DEPARTMENT]);
+                              }
+                            }} 
+                            value={field.value}
+                          >
                             <FormControl>
                               <SelectTrigger>
                                 <SelectValue placeholder="Selecione um papel" />
@@ -573,7 +614,7 @@ export default function SettingsPage() {
                             </SelectContent>
                           </Select>
                           <FormDescription>
-                            Admins têm acesso a todas as configurações e departamentos.
+                            Administradores têm acesso a todas as configurações e, por padrão, ao departamento {ADMIN_DEPARTMENT}.
                           </FormDescription>
                           <FormMessage />
                         </FormItem>
@@ -588,7 +629,6 @@ export default function SettingsPage() {
                         <FormLabel>Departamentos Designados</FormLabel>
                         <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
                           {availableDepartments
-                            .filter(dept => dept !== ADMIN_DEPARTMENT || newUserForm.getValues("newUserRole") === UserRole.ADMIN ) // Admin can be in RH
                             .map((deptValue) => (
                             <FormField
                               key={deptValue}
@@ -601,18 +641,24 @@ export default function SettingsPage() {
                                       <Checkbox
                                         checked={field.value?.includes(deptValue)}
                                         onCheckedChange={(checked) => {
-                                          return checked
-                                            ? field.onChange([...(field.value || []), deptValue])
-                                            : field.onChange(
-                                                (field.value || []).filter(
-                                                  (value) => value !== deptValue
-                                                )
-                                              )
+                                          const currentValues = field.value || [];
+                                          let newValues;
+                                          if (checked) {
+                                            newValues = [...currentValues, deptValue];
+                                          } else {
+                                            newValues = currentValues.filter((value) => value !== deptValue);
+                                          }
+                                          // If role is admin, ensure ADMIN_DEPARTMENT is always included
+                                          if (newUserForm.getValues("newUserRole") === UserRole.ADMIN && !newValues.includes(ADMIN_DEPARTMENT)) {
+                                            newValues.push(ADMIN_DEPARTMENT);
+                                          }
+                                          field.onChange(newValues);
                                         }}
+                                        disabled={newUserForm.getValues("newUserRole") === UserRole.ADMIN && deptValue === ADMIN_DEPARTMENT}
                                       />
                                     </FormControl>
                                     <FormLabel className="font-normal text-sm">
-                                      {deptValue}
+                                      {deptValue} {newUserForm.getValues("newUserRole") === UserRole.ADMIN && deptValue === ADMIN_DEPARTMENT ? "(Obrigatório para Admin)" : ""}
                                     </FormLabel>
                                   </FormItem>
                                 )
@@ -654,7 +700,7 @@ export default function SettingsPage() {
                             <TableCell>{user.name} {user.id === loggedInUser.id ? "(Você)" : ""}</TableCell>
                             <TableCell>{user.email}</TableCell>
                             <TableCell>{user.role === UserRole.ADMIN ? 'Admin' : 'Funcionário'}</TableCell>
-                            <TableCell className="text-xs">{(user.departments || []).join(', ')}</TableCell>
+                            <TableCell className="text-xs max-w-[200px] truncate">{(user.departments || []).join(', ')}</TableCell>
                             <TableCell className="text-right space-x-1">
                               {user.id !== loggedInUser.id && ( 
                                 <>
@@ -706,8 +752,8 @@ export default function SettingsPage() {
               <CardDescription>Designe os departamentos aos quais cada funcionário existente tem acesso.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {manageableUsers.length === 0 ? (
-                <p className="text-muted-foreground text-center">Nenhum usuário para gerenciar encontrado.</p>
+              {manageableUsers.filter(u => u.id !== loggedInUser.id).length === 0 ? (
+                <p className="text-muted-foreground text-center">Nenhum outro usuário para gerenciar encontrado.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -719,7 +765,7 @@ export default function SettingsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {manageableUsers.filter(u => u.email !== loggedInUser.email) 
+                      {manageableUsers.filter(u => u.id !== loggedInUser.id) 
                         .map((user) => (
                         <TableRow key={user.id}>
                           <TableCell>{user.name}</TableCell>
@@ -727,7 +773,7 @@ export default function SettingsPage() {
                           <TableCell>
                             <div className="space-y-2 border rounded-md p-2 max-h-48 overflow-y-auto">
                               {availableDepartments
-                                .filter(dept => dept !== ADMIN_DEPARTMENT) 
+                                .filter(dept => dept !== ADMIN_DEPARTMENT || user.role === UserRole.ADMIN) // Allow assigning ADMIN_DEPARTMENT if user is Admin
                                 .map(deptValue => (
                                 <div key={deptValue} className="flex items-center space-x-2">
                                   <Checkbox
@@ -736,15 +782,19 @@ export default function SettingsPage() {
                                     onCheckedChange={(checked) => {
                                       handleUserDepartmentCheckboxChange(user.id, deptValue, !!checked);
                                     }}
+                                    disabled={user.role === UserRole.ADMIN && deptValue === ADMIN_DEPARTMENT && user.email !== loggedInUser?.email } // Prevent removing ADMIN_DEPARTMENT from other admins
                                   />
-                                  <Label htmlFor={`dept-${user.id}-${deptValue}`} className="font-normal text-sm">{deptValue}</Label>
+                                  <Label htmlFor={`dept-${user.id}-${deptValue}`} className="font-normal text-sm">
+                                    {deptValue} 
+                                    {user.role === UserRole.ADMIN && deptValue === ADMIN_DEPARTMENT ? " (Admin)" : ""}
+                                  </Label>
                                 </div>
                               ))}
                             </div>
                           </TableCell>
                         </TableRow>
                       ))}
-                      {manageableUsers.filter(u => u.email === loggedInUser.email).map(user => (
+                      {manageableUsers.filter(u => u.id === loggedInUser.id).map(user => (
                           <TableRow key={user.id}>
                               <TableCell>{user.name} (Você)</TableCell>
                               <TableCell>{user.email}</TableCell>
@@ -756,7 +806,7 @@ export default function SettingsPage() {
                                               <Label htmlFor={`selfdept-${dept}`} className="font-normal text-sm">{dept} {dept === ADMIN_DEPARTMENT ? "(Admin)" : ""}</Label>
                                           </div>
                                       ))}
-                                      <p className="text-xs text-muted-foreground italic mt-1">Seu(s) departamento(s) principal(is) não podem ser alterados aqui.</p>
+                                      <p className="text-xs text-muted-foreground italic mt-1">Seu(s) departamento(s) não podem ser alterados aqui. O departamento {ADMIN_DEPARTMENT} é obrigatório para seu acesso de administrador.</p>
                                   </div>
                               </TableCell>
                           </TableRow>
@@ -769,7 +819,7 @@ export default function SettingsPage() {
             <CardFooter className="border-t pt-6 flex justify-end">
               <Button 
                 onClick={handleSaveUserDepartments} 
-                disabled={isSavingUserDepartments || manageableUsers.length === 0}
+                disabled={isSavingUserDepartments || manageableUsers.filter(u => u.id !== loggedInUser.id).length === 0}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 {isSavingUserDepartments && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -818,7 +868,7 @@ export default function SettingsPage() {
           <Card className="shadow-lg">
             <CardHeader>
                 <CardTitle className="text-xl flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" /> Gerenciar Locais/Departamentos</CardTitle>
-                <CardDescription>Adicione novos locais ou departamentos que podem ser associados a documentos e funcionários. O local "{ADMIN_DEPARTMENT}" é reservado.</CardDescription>
+                <CardDescription>Adicione novos locais ou departamentos que podem ser associados a documentos e funcionários. O local "{ADMIN_DEPARTMENT}" é reservado e não pode ser removido por esta interface.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="flex gap-2 items-end">
@@ -854,5 +904,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-    
