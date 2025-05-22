@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from '@/contexts/AuthContext';
-import type { LoggedInUser } from '@/lib/types';
+import type { LoggedInUser, DocumentDepartmentValue } from '@/lib/types';
 import { ADMIN_DEPARTMENT, UserRole, DEFAULT_DOCUMENT_DEPARTMENTS } from '@/lib/types';
 import { AppLogo } from '@/components/icons';
 import { Loader2 } from 'lucide-react';
@@ -41,22 +41,23 @@ export default function LoginPage() {
       const storedUsersString = localStorage.getItem(ALL_USERS_STORAGE_KEY);
       if (storedUsersString) {
         const usersFromStorage: LoggedInUser[] = JSON.parse(storedUsersString);
-        // Ensure all users from storage have a password for the simulation
+        // Ensure all users from storage have a password and departments array for the simulation
         const usersWithPasswordsEnsured = usersFromStorage.map(u => ({
           ...u,
-          password: u.password || "123" // Assign default if missing
+          password: u.password || "123", // Assign default if missing
+          departments: Array.isArray(u.departments) ? u.departments : (typeof u.departments === 'string' ? [u.departments] : []) // Ensure departments is an array
         }));
         setAvailableUsers(usersWithPasswordsEnsured);
       } else {
         // Initialize localStorage if empty
-        const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID() }));
+        const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID(), departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue]  }));
         localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersWithIds));
         setAvailableUsers(usersWithIds as LoggedInUser[]);
       }
     } catch (error) {
       console.error("Failed to load users from localStorage", error);
       // Fallback to initial mocks if localStorage is corrupt
-      const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID() }));
+      const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID(), departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] }));
       setAvailableUsers(usersWithIds as LoggedInUser[]);
     }
     setIsLoadingUsers(false);
@@ -120,7 +121,7 @@ export default function LoginPage() {
               <SelectContent>
                 {availableUsers.map((user) => (
                   <SelectItem key={user.email} value={user.email}>
-                    {user.name} ({user.email}) - {user.role === UserRole.ADMIN ? 'Admin' : 'Funcionário'} ({user.departments.join(', ')})
+                    {user.name} ({user.email}) - {user.role === UserRole.ADMIN ? 'Admin' : 'Funcionário'} ({(user.departments || []).join(', ')})
                   </SelectItem>
                 ))}
               </SelectContent>
