@@ -78,7 +78,7 @@ const STATUS_LABELS: Record<DocumentMetadata["status"], string> = {
 };
 
 
-export function DocumentListClient({ documents: initialDocuments }: DocumentListClientProps) {
+export function DocumentListClient({ documents: initialDocuments = [] }: DocumentListClientProps) {
   const { user, isLoading: authIsLoading } = useAuth();
   const { toast } = useToast();
   const [processedDocs, setProcessedDocs] = useState<ProcessedDocument[] | null>(null);
@@ -110,14 +110,14 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     setIsLoadingFilters(true);
     try {
       const storedTypes = localStorage.getItem(localStorageDocumentTypesKey);
-      setAvailableDocumentTypes(storedTypes ? JSON.parse(storedTypes) : DEFAULT_DOCUMENT_TYPES);
+      setAvailableDocumentTypes(storedTypes ? JSON.parse(storedTypes) : [...DEFAULT_DOCUMENT_TYPES]);
 
       const storedDepartments = localStorage.getItem(localStorageDepartmentsKey);
-      setAvailableDepartments(storedDepartments ? JSON.parse(storedDepartments) : DEFAULT_DOCUMENT_DEPARTMENTS);
+      setAvailableDepartments(storedDepartments ? JSON.parse(storedDepartments) : [...DEFAULT_DOCUMENT_DEPARTMENTS]);
     } catch (error) {
       console.error("Erro ao carregar configurações de filtro do localStorage:", error);
-      setAvailableDocumentTypes(DEFAULT_DOCUMENT_TYPES);
-      setAvailableDepartments(DEFAULT_DOCUMENT_DEPARTMENTS);
+      setAvailableDocumentTypes([...DEFAULT_DOCUMENT_TYPES]);
+      setAvailableDepartments([...DEFAULT_DOCUMENT_DEPARTMENTS]);
     }
     setIsLoadingFilters(false);
   }, []);
@@ -125,13 +125,14 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
 
   useEffect(() => {
     if (authIsLoading || !user || isLoadingFilters) {
-      setProcessedDocs(isLoadingFilters ? null : []); 
+      setProcessedDocs(isLoadingFilters || authIsLoading ? null : []); 
       return;
     }
 
     const userIsAdmin = (user.departments || []).includes(ADMIN_DEPARTMENT);
 
-    const documentsForUser = initialDocuments.filter(doc => {
+    const documentsForUser = (initialDocuments || []).filter(doc => { // Ensure initialDocuments is not null/undefined
+      if (!doc) return false; // Filter out any falsy entries
       if (userIsAdmin) return true;
       return doc.department && (user.departments || []).includes(doc.department);
     });
@@ -143,6 +144,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     }));
 
     const filtered = formattedDocs.filter(doc => {
+      if (!doc) return false; // Additional safeguard
       const searchTermMatch = filterSearchTerm === "" || 
                               doc.name.toLowerCase().includes(filterSearchTerm.toLowerCase()) ||
                               doc.number.toLowerCase().includes(filterSearchTerm.toLowerCase());
@@ -226,7 +228,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
       if (result.success) {
         toast({
           title: "Status Atualizado",
-          description: `O status do documento foi alterado para ${STATUS_LABELS[newStatus]}.`,
+          description: `O status do documento "${originalDocument.name}" foi alterado para ${STATUS_LABELS[newStatus]}.`,
         });
       } else {
         toast({
@@ -390,11 +392,11 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
       <Accordion type="single" collapsible className="mb-6 bg-accent/10 dark:bg-accent/20 border border-accent/30 rounded-lg shadow-md">
         <AccordionItem value="item-1" className="border-b-0">
           <div className="flex items-center justify-between p-4">
-            <AccordionTrigger className="flex-grow text-left text-xl font-bold text-primary hover:no-underline p-0">
-              <div className="flex items-center gap-2">
-                <Filter className="h-6 w-6 text-primary" />
-                Filtros
-              </div>
+             <AccordionTrigger className="flex-grow text-left text-xl font-bold text-primary hover:no-underline p-0">
+                <div className="flex items-center gap-2">
+                    <Filter className="h-6 w-6 text-primary" />
+                    Filtros
+                </div>
             </AccordionTrigger>
             <Button variant="ghost" onClick={handleClearFilters} size="sm" className="ml-4 flex-shrink-0 text-muted-foreground hover:text-foreground hover:bg-accent/30">
               <X className="mr-2 h-4 w-4" />
@@ -643,9 +645,13 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                   <TableCell className="font-medium text-foreground">
                     <div className="flex items-center gap-2">
                       <FileText className="h-4 w-4 text-primary flex-shrink-0" />
-                      <Link href={`/documents/${doc.id}`} className="hover:underline truncate" title={doc.name}>
-                         {doc.name}
-                      </Link>
+                      {doc.id ? (
+                        <Link href={`/documents/${doc.id}`} className="hover:underline truncate" title={doc.name}>
+                           {doc.name}
+                        </Link>
+                      ) : (
+                        <span className="truncate" title={doc.name}>{doc.name} (ID Inválido)</span>
+                      )}
                       {doc.sharedWith && doc.sharedWith.length > 0 && (
                         <TooltipProvider>
                           <Tooltip>
@@ -711,12 +717,18 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                           <Link href={`/documents/${doc.id}`} className="flex items-center cursor-pointer">
-                            <Eye className="mr-2 h-4 w-4" /> Visualizar
-                          </Link>
-                        </DropdownMenuItem>
-                        {userCanEditDoc && (
+                        {doc.id ? (
+                          <DropdownMenuItem asChild>
+                             <Link href={`/documents/${doc.id}`} className="flex items-center cursor-pointer">
+                              <Eye className="mr-2 h-4 w-4" /> Visualizar
+                            </Link>
+                          </DropdownMenuItem>
+                        ) : (
+                          <DropdownMenuItem disabled className="flex items-center">
+                            <Eye className="mr-2 h-4 w-4" /> Visualizar (ID Inválido)
+                          </DropdownMenuItem>
+                        )}
+                        {userCanEditDoc && doc.id && (
                           <DropdownMenuItem asChild>
                             <Link href={`/documents/${doc.id}/edit`} className="flex items-center cursor-pointer">
                               <Edit3 className="mr-2 h-4 w-4" /> Editar
@@ -756,3 +768,5 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     </>
   );
 }
+
+    
