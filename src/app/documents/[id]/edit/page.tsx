@@ -8,8 +8,8 @@ import { ArrowLeft, Loader2, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { notFound, useRouter } from "next/navigation";
 import { EditDocumentForm } from "@/components/documents/EditDocumentForm";
-import type { DocumentMetadata } from '@/lib/types';
-import { DocumentDepartment } from '@/lib/types';
+import type { DocumentMetadata, DocumentDepartmentValue } from '@/lib/types';
+import { ADMIN_DEPARTMENT } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 
@@ -43,8 +43,9 @@ export default function DocumentEditPage({ params }: DocumentEditPageProps) {
         return;
       }
 
-      const userIsAdmin = user.department === DocumentDepartment.RECURSOS_HUMANOS;
-      if (!userIsAdmin && fetchedDocument.department !== user.department) {
+      const userIsAdmin = (user.departments || []).includes(ADMIN_DEPARTMENT);
+      // Ensure fetchedDocument.department exists before trying to check if it's in user.departments
+      if (!userIsAdmin && fetchedDocument.department && !(user.departments || []).includes(fetchedDocument.department)) {
         setAccessDenied(true);
         setDocument(fetchedDocument); // Still set doc to show its name in denial message
       } else {
