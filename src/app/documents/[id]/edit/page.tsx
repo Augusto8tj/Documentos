@@ -1,7 +1,7 @@
 
 "use client"; // Convert to client component
 
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react'; // Ensure React is imported
 import { getDocumentById } from "@/data/mock-data";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Loader2, ShieldAlert } from "lucide-react";
@@ -14,10 +14,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardDescription, CardTitle } from '@/components/ui/card';
 
 interface DocumentEditPageProps {
-  params: { id: string };
+  params: Promise<{ id: string }>; // Updated type
 }
 
-export default function DocumentEditPage({ params }: DocumentEditPageProps) {
+export default function DocumentEditPage({ params: paramsPromise }: DocumentEditPageProps) {
+  const resolvedParams = React.use(paramsPromise); // Unwrap params
+  const documentId = resolvedParams.id;
+
   const { user, isLoading: authIsLoading } = useAuth();
   const router = useRouter();
   const [document, setDocument] = useState<DocumentMetadata | null | undefined>(undefined);
@@ -35,7 +38,7 @@ export default function DocumentEditPage({ params }: DocumentEditPageProps) {
     async function fetchDocumentForEdit() {
       setIsLoadingDoc(true);
       setAccessDenied(false);
-      const fetchedDocument = await getDocumentById(params.id);
+      const fetchedDocument = await getDocumentById(documentId); // Use resolved documentId
       
       if (!fetchedDocument) {
         setDocument(null); // Will trigger notFound
@@ -54,8 +57,10 @@ export default function DocumentEditPage({ params }: DocumentEditPageProps) {
       setIsLoadingDoc(false);
     }
 
-    fetchDocumentForEdit();
-  }, [params.id, user, authIsLoading, router]);
+    if (documentId) { // Ensure documentId is available
+        fetchDocumentForEdit();
+    }
+  }, [documentId, user, authIsLoading, router]); // Updated dependency
 
   if (authIsLoading || isLoadingDoc || document === undefined) {
     return (
