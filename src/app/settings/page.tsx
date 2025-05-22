@@ -17,7 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardFooter } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle } from "@/components/ui/card";
 import { Loader2, User, Palette, Users, Edit2, Building, BookType, Landmark } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
@@ -134,7 +134,7 @@ export default function SettingsPage() {
             departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] 
           }));
           localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersWithIdsAndArrayDepartments));
-          setManageableUsers(usersWithIdsAndArrayDepartments);
+          setManageableUsers(usersWithIdsAndArrayDepartments as LoggedInUser[]);
         }
       } catch (error) {
         console.error("Erro ao carregar usuários gerenciáveis:", error);
@@ -143,7 +143,7 @@ export default function SettingsPage() {
           id: crypto.randomUUID(),
           departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] 
         }));
-        setManageableUsers(usersWithIdsAndArrayDepartments); 
+        setManageableUsers(usersWithIdsAndArrayDepartments as LoggedInUser[]); 
       }
     }
   }, [isAdmin]);
@@ -282,6 +282,10 @@ export default function SettingsPage() {
     }
     if (availableDepartments.map(d => d.toLowerCase()).includes(newDepartment.trim().toLowerCase())) {
       toast({ title: "Local Duplicado", description: "Este local/departamento já existe.", variant: "destructive" });
+      return;
+    }
+     if (newDepartment.trim() === ADMIN_DEPARTMENT) {
+      toast({ title: "Local Inválido", description: `O local/departamento "${ADMIN_DEPARTMENT}" é reservado para o administrador.`, variant: "destructive" });
       return;
     }
     setIsAddingDepartment(true);
@@ -429,7 +433,9 @@ export default function SettingsPage() {
                           <TableCell>{user.email}</TableCell>
                           <TableCell>
                             <div className="space-y-2 border rounded-md p-2 max-h-48 overflow-y-auto">
-                              {availableDepartments.map(deptValue => (
+                              {availableDepartments
+                                .filter(dept => dept !== ADMIN_DEPARTMENT) // Don't show ADMIN_DEPARTMENT as an assignable option here for others
+                                .map(deptValue => (
                                 <div key={deptValue} className="flex items-center space-x-2">
                                   <Checkbox
                                     id={`dept-${user.id}-${deptValue}`}
@@ -437,7 +443,6 @@ export default function SettingsPage() {
                                     onCheckedChange={(checked) => {
                                       handleUserDepartmentCheckboxChange(user.id, deptValue, !!checked);
                                     }}
-                                    disabled={user.role === UserRole.ADMIN && deptValue === ADMIN_DEPARTMENT && user.email === loggedInUser.email} // Prevent admin from removing their own core HR role
                                   />
                                   <Label htmlFor={`dept-${user.id}-${deptValue}`} className="font-normal text-sm">{deptValue}</Label>
                                 </div>
@@ -455,7 +460,7 @@ export default function SettingsPage() {
                                       {(user.departments || []).map(dept => (
                                           <div key={dept} className="flex items-center space-x-2">
                                               <Checkbox id={`selfdept-${dept}`} checked readOnly disabled />
-                                              <Label htmlFor={`selfdept-${dept}`} className="font-normal text-sm">{dept}</Label>
+                                              <Label htmlFor={`selfdept-${dept}`} className="font-normal text-sm">{dept} {dept === ADMIN_DEPARTMENT ? "(Admin)" : ""}</Label>
                                           </div>
                                       ))}
                                       <p className="text-xs text-muted-foreground italic mt-1">Seu(s) departamento(s) principal(is) não podem ser alterados aqui.</p>
@@ -518,7 +523,7 @@ export default function SettingsPage() {
           <Card className="shadow-lg">
             <CardHeader>
                 <CardTitle className="text-xl flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" /> Gerenciar Locais/Departamentos</CardTitle>
-                <CardDescription>Adicione novos locais ou departamentos que podem ser associados a documentos e funcionários.</CardDescription>
+                <CardDescription>Adicione novos locais ou departamentos que podem ser associados a documentos e funcionários. O local "{ADMIN_DEPARTMENT}" é reservado.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="flex gap-2 items-end">
@@ -541,7 +546,7 @@ export default function SettingsPage() {
                     <h4 className="font-medium text-muted-foreground mb-2">Locais/Departamentos Atuais:</h4>
                     {availableDepartments.length > 0 ? (
                         <ul className="list-disc list-inside pl-4 text-sm text-foreground space-y-1 max-h-40 overflow-y-auto border rounded-md p-2">
-                            {availableDepartments.map(dept => <li key={dept}>{dept} {dept === ADMIN_DEPARTMENT ? "(Departamento Admin - Não editável)" : ""}</li>)}
+                            {availableDepartments.map(dept => <li key={dept}>{dept} {dept === ADMIN_DEPARTMENT ? <span className="text-xs italic text-muted-foreground">(Departamento Admin - não editável aqui)</span> : ""}</li>)}
                         </ul>
                     ) : (
                         <p className="text-sm text-muted-foreground italic">Nenhum local/departamento cadastrado.</p>
@@ -556,4 +561,3 @@ export default function SettingsPage() {
 }
 
 
-    
