@@ -1,58 +1,54 @@
 
-export enum DocumentType {
-  OFICIO = "Ofício",
-  MEMORANDO = "Memorando",
-  PORTARIA = "Portaria",
-  DECRETO = "Decreto",
-  ATA = "Ata",
-  OUTROS = "Outros",
-}
+export type DocumentTypeValue = string;
+export type DocumentDepartmentValue = string;
 
-export enum DocumentDepartment {
-  ADMINISTRACAO = "Administração",
-  GABINETE = "Gabinete",
-  RECURSOS_HUMANOS = "Recursos Humanos",
-  FINANCEIRO = "Financeiro",
-  JURIDICO = "Jurídico",
-  TI = "Tecnologia da Informação",
-  COMUNICACAO = "Comunicação",
-  OUTROS = "Outros",
-}
+export const DEFAULT_DOCUMENT_TYPES: DocumentTypeValue[] = ["Ofício", "Memorando", "Portaria", "Decreto", "Ata", "Outros"];
+export const DEFAULT_DOCUMENT_DEPARTMENTS: DocumentDepartmentValue[] = ["Administração", "Gabinete", "Recursos Humanos", "Financeiro", "Jurídico", "Tecnologia da Informação", "Comunicação", "Outros Setores"];
+export const ADMIN_DEPARTMENT: DocumentDepartmentValue = "Recursos Humanos";
 
-export type DocumentSourceType = "internal" | "googleDocs" | "local";
+
+export const UserRole = {
+  ADMIN: 'admin',
+  EMPLOYEE: 'employee',
+} as const;
+
+export type UserRoleValue = typeof UserRole[keyof typeof UserRole];
 
 export interface DocumentMetadata {
   id: string;
   name: string;
-  type: DocumentType;
-  number: string; // Automatic numbering will produce this
-  createdAt: string; // ISO date string
-  updatedAt: string; // ISO date string
+  type: DocumentTypeValue;
+  number: string; 
+  createdAt: string; 
+  updatedAt: string; 
   status: "Draft" | "Published" | "Archived";
   
   sourceType: DocumentSourceType;
-  googleDocsId?: string; // ID of the document in Google Docs
-  localFileIdentifier?: string; // User-defined path or identifier for local files
-  internalContent?: string; // Conteúdo para documentos internos
+  googleDocsId?: string; 
+  localFileIdentifier?: string; 
+  internalContent?: string; 
   sharedWith?: { email: string; permission: "view" | "edit" }[];
   author?: { name: string; email: string };
-  department?: DocumentDepartment; 
+  department?: DocumentDepartmentValue; 
+  templateUsed?: string;
+  templateContentPreview?: string;
 }
+
+export type DocumentSourceType = "internal" | "googleDocs" | "local";
 
 export interface TemplateMetadata {
   id: string;
   name: string;
   description: string;
   baseContentPreview: string; 
-  defaultDocumentType: DocumentType;
+  defaultDocumentType: DocumentTypeValue;
 }
-
-export type UserRole = 'admin' | 'employee';
 
 export interface LoggedInUser {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
-  department: DocumentDepartment; // Admin (RH) also belongs to RH department for document creation
+  role: UserRoleValue;
+  departments: DocumentDepartmentValue[];
+  password?: string; // Senha para simulação
 }

@@ -29,8 +29,8 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, ExternalLink, Users, CalendarIcon, Filter, Folder, FileArchive, CheckCircle2, FileEdit, Archive, User, Building, Loader2 } from "lucide-react";
-import type { DocumentMetadata, DocumentSourceType, LoggedInUser } from "@/lib/types";
-import { DocumentType, DocumentDepartment } from "@/lib/types";
+import type { DocumentMetadata, DocumentSourceType, LoggedInUser, DocumentTypeValue, DocumentDepartmentValue } from "@/lib/types";
+import { ADMIN_DEPARTMENT, DEFAULT_DOCUMENT_TYPES, DEFAULT_DOCUMENT_DEPARTMENTS } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
 import { 
   format, 
@@ -65,6 +65,8 @@ interface ProcessedDocument extends DocumentMetadata {
 }
 
 type DateFilterPeriod = "all" | "day" | "week" | "month" | "year";
+const localStorageDocumentTypesKey = "docflow-document-types";
+const localStorageDepartmentsKey = "docflow-document-departments";
 
 export function DocumentListClient({ documents: initialDocuments }: DocumentListClientProps) {
   const { user, isLoading: authIsLoading } = useAuth();
@@ -73,9 +75,9 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
 
   const [filterSearchTerm, setFilterSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState<DocumentType | "all">("all");
+  const [filterType, setFilterType] = useState<DocumentTypeValue | "all">("all");
   const [filterStatus, setFilterStatus] = useState<DocumentMetadata["status"] | "all">("all");
-  const [filterDepartment, setFilterDepartment] = useState<DocumentDepartment | "all">("all");
+  const [filterDepartment, setFilterDepartment] = useState<DocumentDepartmentValue | "all">("all");
   
   const [filterCreatedAtPeriod, setFilterCreatedAtPeriod] = useState<DateFilterPeriod>("all");
   const [filterCreatedAtValue, setFilterCreatedAtValue] = useState<Date | undefined>(undefined);
@@ -87,17 +89,38 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const [filterSharedEmail, setFilterSharedEmail] = useState("");
   const [filterAuthorEmail, setFilterAuthorEmail] = useState("");
 
+  const [availableDocumentTypes, setAvailableDocumentTypes] = useState<DocumentTypeValue[]>([]);
+  const [availableDepartments, setAvailableDepartments] = useState<DocumentDepartmentValue[]>([]);
+  const [isLoadingFilters, setIsLoadingFilters] = useState(true);
+
   useEffect(() => {
-    if (authIsLoading || !user) {
-      setProcessedDocs([]); // Clear docs if not logged in or loading
+    setIsLoadingFilters(true);
+    try {
+      const storedTypes = localStorage.getItem(localStorageDocumentTypesKey);
+      setAvailableDocumentTypes(storedTypes ? JSON.parse(storedTypes) : DEFAULT_DOCUMENT_TYPES);
+
+      const storedDepartments = localStorage.getItem(localStorageDepartmentsKey);
+      setAvailableDepartments(storedDepartments ? JSON.parse(storedDepartments) : DEFAULT_DOCUMENT_DEPARTMENTS);
+    } catch (error) {
+      console.error("Erro ao carregar configurações de filtro do localStorage:", error);
+      setAvailableDocumentTypes(DEFAULT_DOCUMENT_TYPES);
+      setAvailableDepartments(DEFAULT_DOCUMENT_DEPARTMENTS);
+    }
+    setIsLoadingFilters(false);
+  }, []);
+
+
+  useEffect(() => {
+    if (authIsLoading || !user || isLoadingFilters) {
+      setProcessedDocs(isLoadingFilters ? null : []); 
       return;
     }
 
-    const userIsAdmin = user.department === DocumentDepartment.RECURSOS_HUMANOS;
+    const userIsAdmin = (user.departments || []).includes(ADMIN_DEPARTMENT);
 
     const documentsForUser = initialDocuments.filter(doc => {
       if (userIsAdmin) return true;
-      return doc.department === user.department;
+      return doc.department && (user.departments || []).includes(doc.department);
     });
 
     const formattedDocs = documentsForUser.map(doc => ({
@@ -157,7 +180,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   }, [initialDocuments, filterSearchTerm, filterType, filterStatus, filterDepartment,
       filterCreatedAtPeriod, filterCreatedAtValue, 
       filterUpdatedAtPeriod, filterUpdatedAtValue,
-      filterSourceType, filterSharedEmail, filterAuthorEmail, user, authIsLoading]);
+      filterSourceType, filterSharedEmail, filterAuthorEmail, user, authIsLoading, isLoadingFilters]);
 
   const handleShare = (doc: DocumentMetadata) => {
     setSelectedDocumentForShare(doc);
@@ -213,7 +236,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     }
   };
 
-  if (authIsLoading || processedDocs === null) {
+  if (authIsLoading || processedDocs === null || isLoadingFilters) {
      return (
       <div className="rounded-lg border shadow-sm bg-card p-4">
         <div className="animate-pulse">
@@ -236,6 +259,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   }
   
   const currentDocuments = processedDocs; 
+  const userIsAdmin = user && (user.departments || []).includes(ADMIN_DEPARTMENT);
 
   const getSourceTypeIcon = (sourceType: DocumentSourceType) => {
     switch (sourceType) {
@@ -320,13 +344,13 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
               </div>
               <div>
                 <Label htmlFor="filterType" className="text-sm font-medium text-muted-foreground db-block mb-1">Tipo</Label>
-                <Select value={filterType} onValueChange={(value) => setFilterType(value as DocumentType | "all")}>
+                <Select value={filterType} onValueChange={(value) => setFilterType(value as DocumentTypeValue | "all")}>
                   <SelectTrigger id="filterType" className="mt-1">
                     <SelectValue placeholder="Todos os tipos" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os tipos</SelectItem>
-                    {Object.values(DocumentType).map((type) => (
+                    {availableDocumentTypes.map((type) => (
                       <SelectItem key={type} value={type}>{type}</SelectItem>
                     ))}
                   </SelectContent>
@@ -346,16 +370,16 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                   </SelectContent>
                 </Select>
               </div>
-              {user.department === DocumentDepartment.RECURSOS_HUMANOS && (
+              {userIsAdmin && (
                 <div>
                   <Label htmlFor="filterDepartment" className="text-sm font-medium text-muted-foreground db-block mb-1">Departamento</Label>
-                  <Select value={filterDepartment} onValueChange={(value) => setFilterDepartment(value as DocumentDepartment | "all")}>
+                  <Select value={filterDepartment} onValueChange={(value) => setFilterDepartment(value as DocumentDepartmentValue | "all")}>
                     <SelectTrigger id="filterDepartment" className="mt-1">
                       <SelectValue placeholder="Todos os departamentos" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Todos os departamentos</SelectItem>
-                      {Object.values(DocumentDepartment).map((dept) => (
+                      {availableDepartments.map((dept) => (
                         <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                       ))}
                     </SelectContent>
@@ -485,7 +509,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                   className="mt-1"
                 />
               </div>
-              {user.department === DocumentDepartment.RECURSOS_HUMANOS && (
+              {userIsAdmin && (
                 <div>
                   <Label htmlFor="filterAuthorEmail" className="text-sm font-medium text-muted-foreground db-block mb-1">
                     <User className="inline mr-1 h-4 w-4" />
@@ -513,7 +537,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
               <TableHead className="min-w-[250px]">Nome</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Número</TableHead>
-              {user.department === DocumentDepartment.RECURSOS_HUMANOS && <TableHead>Departamento</TableHead>}
+              {userIsAdmin && <TableHead>Departamento</TableHead>}
               <TableHead>Status</TableHead>
               <TableHead>Última Modificação</TableHead>
               <TableHead className="text-right">Ações</TableHead>
@@ -522,7 +546,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
           <TableBody>
             {currentDocuments.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={user.department === DocumentDepartment.RECURSOS_HUMANOS ? 8 : 7} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={userIsAdmin ? 8 : 7} className="h-24 text-center text-muted-foreground">
                   Nenhum documento encontrado com os filtros aplicados ou para seu departamento.
                 </TableCell>
               </TableRow>
@@ -563,7 +587,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                   </TableCell>
                   <TableCell className="text-muted-foreground">{doc.type}</TableCell>
                   <TableCell className="text-muted-foreground">{doc.number}</TableCell>
-                  {user.department === DocumentDepartment.RECURSOS_HUMANOS && <TableCell className="text-muted-foreground">{doc.department || "N/A"}</TableCell>}
+                  {userIsAdmin && <TableCell className="text-muted-foreground">{doc.department || "N/A"}</TableCell>}
                   <TableCell>
                   <Badge 
                     variant={getStatusBadgeVariant(doc.status)} 
@@ -604,7 +628,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                         <DropdownMenuItem onClick={() => handleShare(doc)} className="flex items-center cursor-pointer">
                           <Share2 className="mr-2 h-4 w-4" /> Compartilhar
                         </DropdownMenuItem>
-                        {user.department === DocumentDepartment.RECURSOS_HUMANOS && ( // Only admin can delete
+                        {userIsAdmin && ( 
                            <DropdownMenuItem onClick={() => handleDelete(doc.id)} className="text-destructive flex items-center cursor-pointer">
                             <Trash2 className="mr-2 h-4 w-4" /> Excluir
                           </DropdownMenuItem>
@@ -626,3 +650,5 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     </>
   );
 }
+
+    

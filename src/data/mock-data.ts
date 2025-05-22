@@ -1,12 +1,13 @@
 
-import type { DocumentMetadata } from "@/lib/types";
-import { DocumentType, DocumentDepartment } from "@/lib/types";
+import type { DocumentMetadata, DocumentTypeValue, DocumentDepartmentValue } from "@/lib/types";
+
+// Removida a importação de valor para DocumentType e DocumentDepartment
 
 export const mockDocuments: DocumentMetadata[] = [
   {
     id: "1",
     name: "Ofício Solicitação de Equipamentos",
-    type: DocumentType.OFICIO,
+    type: "Ofício" as DocumentTypeValue,
     number: "OF-2024-001",
     createdAt: new Date(2024, 0, 15).toISOString(),
     updatedAt: new Date(2024, 0, 16).toISOString(),
@@ -15,12 +16,12 @@ export const mockDocuments: DocumentMetadata[] = [
     sharedWith: [{ email: "colleague1@example.com", permission: "edit" }],
     status: "Published",
     author: { name: "Usuário Exemplo", email: "usuario@exemplo.com" },
-    department: DocumentDepartment.TI,
+    department: "Tecnologia da Informação" as DocumentDepartmentValue,
   },
   {
     id: "2",
     name: "Memorando Interno Reunião Semanal",
-    type: DocumentType.MEMORANDO,
+    type: "Memorando" as DocumentTypeValue,
     number: "MEM-2024-001",
     createdAt: new Date(2024, 1, 10).toISOString(),
     updatedAt: new Date(2024, 1, 10).toISOString(),
@@ -28,12 +29,12 @@ export const mockDocuments: DocumentMetadata[] = [
     internalContent: "Este é o conteúdo do memorando sobre a reunião semanal.\n\nTópicos a serem discutidos:\n1. Revisão das metas do último sprint.\n2. Planejamento para o próximo sprint.\n3. Feedback dos clientes.",
     status: "Draft",
     author: { name: "Ana Silva", email: "ana.silva@example.com" },
-    department: DocumentDepartment.ADMINISTRACAO,
+    department: "Administração" as DocumentDepartmentValue,
   },
   {
     id: "3",
     name: "Portaria de Nomeação",
-    type: DocumentType.PORTARIA,
+    type: "Portaria" as DocumentTypeValue,
     number: "PORT-2024-005",
     createdAt: new Date(2024, 2, 5).toISOString(),
     updatedAt: new Date(2024, 2, 5).toISOString(),
@@ -44,12 +45,13 @@ export const mockDocuments: DocumentMetadata[] = [
       { email: "hr@example.com", permission: "view" },
     ],
     status: "Published",
-    department: DocumentDepartment.RECURSOS_HUMANOS,
+    author: { name: "Admin RH", email: "admin@rh.com" }, // Adicionando um autor
+    department: "Recursos Humanos" as DocumentDepartmentValue,
   },
   {
     id: "4",
     name: "Ata da Reunião de Diretoria",
-    type: DocumentType.ATA,
+    type: "Ata" as DocumentTypeValue,
     number: "ATA-2024-002",
     createdAt: new Date(2024, 3, 20).toISOString(),
     updatedAt: new Date(2024, 3, 22).toISOString(),
@@ -57,19 +59,20 @@ export const mockDocuments: DocumentMetadata[] = [
     localFileIdentifier: "C:\\Reuniões\\Diretoria\\ATA-2024-002.pdf",
     status: "Published",
     author: { name: "Carlos Pereira", email: "carlos.p@example.com" },
-    department: DocumentDepartment.GABINETE,
+    department: "Gabinete" as DocumentDepartmentValue,
   },
   {
     id: "5",
     name: "Decreto Municipal Feriado",
-    type: DocumentType.DECRETO,
+    type: "Decreto" as DocumentTypeValue,
     number: "DEC-2024-010",
     createdAt: new Date(2024, 4, 1).toISOString(),
     updatedAt: new Date(2024, 4, 1).toISOString(),
     sourceType: "internal",
     internalContent: "DECRETO Nº DEC-2024-010\n\nConsiderando a data comemorativa de Corpus Christi,\n\nArt. 1º Fica decretado ponto facultativo nas repartições públicas municipais no dia XX de Mês de XXXX.\nArt. 2º Este decreto entra em vigor na data de sua publicação.",
     status: "Published",
-    department: DocumentDepartment.GABINETE,
+    author: { name: "Prefeito Municipal", email: "prefeito@example.com" }, // Adicionando um autor
+    department: "Gabinete" as DocumentDepartmentValue,
   },
 ];
 
@@ -94,11 +97,21 @@ export const updateDocumentMetadata = (
 ): boolean => {
   const docIndex = userDocuments.findIndex(d => d.id === docId);
   if (docIndex !== -1) {
+    // Preserve existing author unless explicitly updated
+    const existingAuthor = userDocuments[docIndex].author;
+    
     userDocuments[docIndex] = {
       ...userDocuments[docIndex],
       ...updates,
       updatedAt: new Date().toISOString(),
     };
+
+    // If updates don't include an author, restore the existing one.
+    // This handles cases where the update might inadvertently clear the author.
+    if (updates.author === undefined && existingAuthor !== undefined) {
+      userDocuments[docIndex].author = existingAuthor;
+    }
+    
     // Ensure consistency based on sourceType
     if (updates.sourceType === "googleDocs") {
       userDocuments[docIndex].localFileIdentifier = undefined;
