@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -13,12 +13,13 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardFooter, CardTitle } from "@/components/ui/card";
-import { Loader2, User, Palette, Users, Edit2, Building, BookType, Landmark } from "lucide-react";
+import { Loader2, User, Palette, Users, Edit2, Building, BookType, Landmark, UserPlus, KeyRound, Trash2, UsersRound } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import type { LoggedInUser, DocumentDepartmentValue, DocumentTypeValue, UserRoleValue } from "@/lib/types";
@@ -33,6 +34,24 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 
 const profileFormSchema = z.object({
@@ -42,10 +61,20 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
+const newUserFormSchema = z.object({
+  newUserName: z.string().min(2, "Nome é obrigatório.").max(50),
+  newUserEmail: z.string().email("E-mail inválido."),
+  newUserPassword: z.string().min(3, "Senha deve ter pelo menos 3 caracteres."),
+  newUserRole: z.nativeEnum(UserRole),
+  newUserDepartments: z.array(z.string()).min(1, "Selecione ao menos um departamento."),
+});
+type NewUserFormValues = z.infer<typeof newUserFormSchema>;
+
+
 type Theme = "light" | "dark" | "system" | "feminine" | "professional" | "playful" | "serif-classic";
 
 const localStorageThemeKey = "docflow-active-theme"; 
-const localStorageProfileNameKey = "docflow-profile-name"; // Specific key for profile name
+const localStorageProfileNameKey = "docflow-profile-name";
 const ALL_USERS_STORAGE_KEY = "docflow-all-users";
 const localStorageDocumentTypesKey = "docflow-document-types";
 const localStorageDepartmentsKey = "docflow-document-departments";
@@ -53,12 +82,13 @@ const localStorageDepartmentsKey = "docflow-document-departments";
 
 export default function SettingsPage() {
   const { toast } = useToast();
-  const { user: loggedInUser, login: updateAuthContextUser } = useAuth(); // login here is used to update context
+  const { user: loggedInUser, login: updateAuthContextUser } = useAuth();
   const [isSubmittingProfile, setIsSubmittingProfile] = useState(false);
   const [selectedTheme, setSelectedTheme] = useState<Theme>("system");
 
   const [manageableUsers, setManageableUsers] = useState<LoggedInUser[]>([]);
   const [isSavingUserDepartments, setIsSavingUserDepartments] = useState(false);
+  const [isProcessingUserAction, setIsProcessingUserAction] = useState(false);
 
   const [availableDocumentTypes, setAvailableDocumentTypes] = useState<DocumentTypeValue[]>([]);
   const [newDocumentType, setNewDocumentType] = useState("");
@@ -70,8 +100,7 @@ export default function SettingsPage() {
   
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
-
-  const isAdmin = loggedInUser?.role === UserRole.ADMIN && (loggedInUser?.departments || []).includes(ADMIN_DEPARTMENT);
+  const isAdmin = (loggedInUser?.departments || []).includes(ADMIN_DEPARTMENT);
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -80,6 +109,18 @@ export default function SettingsPage() {
       email: "",
     },
   });
+
+  const newUserForm = useForm<NewUserFormValues>({
+    resolver: zodResolver(newUserFormSchema),
+    defaultValues: {
+      newUserName: "",
+      newUserEmail: "",
+      newUserPassword: "",
+      newUserRole: UserRole.EMPLOYEE,
+      newUserDepartments: [],
+    },
+  });
+
 
   useEffect(() => {
     setIsLoadingConfig(true);
@@ -109,7 +150,7 @@ export default function SettingsPage() {
     if (loggedInUser) {
       const storedProfileName = localStorage.getItem(localStorageProfileNameKey);
       profileForm.reset({
-        name: storedProfileName || loggedInUser.name, // Prefer localStorage name if exists, then context
+        name: storedProfileName || loggedInUser.name,
         email: loggedInUser.email,
       });
     }
@@ -122,15 +163,17 @@ export default function SettingsPage() {
         const storedUsersString = localStorage.getItem(ALL_USERS_STORAGE_KEY);
         if (storedUsersString) {
            const usersFromStorage: LoggedInUser[] = JSON.parse(storedUsersString);
-           const usersWithDepartmentsEnsured = usersFromStorage.map(u => ({
-            ...u,
+           const usersWithDefaultsEnsured = usersFromStorage.map(u => ({ 
+            ...u, 
+            password: u.password || "123",
             departments: Array.isArray(u.departments) ? u.departments : (typeof u.departments === 'string' ? [u.departments as DocumentDepartmentValue] : [])
            }));
-           setManageableUsers(usersWithDepartmentsEnsured);
+           setManageableUsers(usersWithDefaultsEnsured);
         } else {
           const usersWithIdsAndArrayDepartments = initialMockUsers.map(u => ({ 
             ...u, 
             id: crypto.randomUUID(),
+            password: u.password || "123",
             departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] 
           }));
           localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersWithIdsAndArrayDepartments));
@@ -141,6 +184,7 @@ export default function SettingsPage() {
         const usersWithIdsAndArrayDepartments = initialMockUsers.map(u => ({ 
           ...u, 
           id: crypto.randomUUID(),
+          password: u.password || "123",
           departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] 
         }));
         setManageableUsers(usersWithIdsAndArrayDepartments as LoggedInUser[]); 
@@ -153,8 +197,8 @@ export default function SettingsPage() {
     try {
       localStorage.setItem(localStorageProfileNameKey, values.name);
       if (loggedInUser) {
-        const updatedUser: LoggedInUser = { ...loggedInUser, name: values.name, email: loggedInUser.email }; // email remains from auth context
-        updateAuthContextUser(updatedUser); // This updates the context and localStorage for loggedInUser
+        const updatedUser: LoggedInUser = { ...loggedInUser, name: values.name, email: loggedInUser.email }; 
+        updateAuthContextUser(updatedUser); 
       }
       toast({
         title: "Perfil Atualizado",
@@ -220,7 +264,6 @@ export default function SettingsPage() {
           } else {
             newDepartments = currentDepartments.filter(dept => dept !== departmentValue);
           }
-          // Ensure ADMIN_DEPARTMENT is always present for admins and not removable if it's their defining role
           if (user.role === UserRole.ADMIN && user.email === loggedInUser?.email && !newDepartments.includes(ADMIN_DEPARTMENT)) {
             newDepartments.push(ADMIN_DEPARTMENT);
           }
@@ -250,6 +293,64 @@ export default function SettingsPage() {
       setIsSavingUserDepartments(false);
     }
   };
+
+  const handleAddNewUser = (values: NewUserFormValues) => {
+    setIsProcessingUserAction(true);
+    const existingUser = manageableUsers.find(u => u.email === values.newUserEmail);
+    if (existingUser) {
+      toast({ title: "Erro ao Adicionar", description: "Usuário com este e-mail já existe.", variant: "destructive" });
+      setIsProcessingUserAction(false);
+      return;
+    }
+
+    const newUser: LoggedInUser = {
+      id: crypto.randomUUID(),
+      name: values.newUserName,
+      email: values.newUserEmail,
+      password: values.newUserPassword,
+      role: values.newUserRole,
+      departments: values.newUserDepartments,
+    };
+
+    const updatedUsers = [...manageableUsers, newUser];
+    setManageableUsers(updatedUsers);
+    localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
+    toast({ title: "Usuário Adicionado", description: `${values.newUserName} foi adicionado ao sistema.` });
+    newUserForm.reset();
+    setIsProcessingUserAction(false);
+  };
+
+  const handleResetUserPassword = (userId: string) => {
+    const newPassword = prompt("Digite a nova senha para este usuário (mín. 3 caracteres):");
+    if (newPassword === null) return; // User cancelled
+    if (newPassword.length < 3) {
+      toast({ title: "Senha Inválida", description: "A nova senha deve ter pelo menos 3 caracteres.", variant: "destructive" });
+      return;
+    }
+    
+    setIsProcessingUserAction(true);
+    const updatedUsers = manageableUsers.map(u => u.id === userId ? { ...u, password: newPassword } : u);
+    setManageableUsers(updatedUsers);
+    localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
+    toast({ title: "Senha Resetada", description: "A senha do usuário foi atualizada." });
+    setIsProcessingUserAction(false);
+  };
+
+  const handleDeleteUser = (userId: string, userName: string) => {
+    if (loggedInUser?.id === userId) {
+      toast({ title: "Ação Inválida", description: "Você não pode excluir a si mesmo.", variant: "destructive" });
+      return;
+    }
+    if (window.confirm(`Tem certeza que deseja excluir o usuário ${userName}? Esta ação não pode ser desfeita.`)) {
+      setIsProcessingUserAction(true);
+      const updatedUsers = manageableUsers.filter(u => u.id !== userId);
+      setManageableUsers(updatedUsers);
+      localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
+      toast({ title: "Usuário Excluído", description: `${userName} foi removido do sistema.` });
+      setIsProcessingUserAction(false);
+    }
+  };
+
 
   const handleAddDocumentType = () => {
     if (!newDocumentType.trim()) {
@@ -407,10 +508,202 @@ export default function SettingsPage() {
 
       {isAdmin && (
         <>
+          {/* Gerenciar Usuários */}
           <Card className="shadow-lg">
             <CardHeader>
-              <CardTitle className="text-xl flex items-center gap-2"><Users className="h-5 w-5 text-primary" /> Gerenciar Departamentos de Funcionários</CardTitle>
-              <CardDescription>Designe os departamentos aos quais cada funcionário tem acesso.</CardDescription>
+              <CardTitle className="text-xl flex items-center gap-2"><UsersRound className="h-5 w-5 text-primary" /> Gerenciar Usuários</CardTitle>
+              <CardDescription>Adicione novos usuários, redefina senhas e gerencie o acesso.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Formulário para Adicionar Novo Usuário */}
+              <Form {...newUserForm}>
+                <form onSubmit={newUserForm.handleSubmit(handleAddNewUser)} className="space-y-4 p-4 border rounded-md">
+                  <h3 className="text-lg font-medium text-foreground">Adicionar Novo Usuário</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={newUserForm.control}
+                      name="newUserName"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nome Completo</FormLabel>
+                          <FormControl><Input placeholder="Nome do usuário" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={newUserForm.control}
+                      name="newUserEmail"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>E-mail</FormLabel>
+                          <FormControl><Input type="email" placeholder="email@exemplo.com" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                      control={newUserForm.control}
+                      name="newUserPassword"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Senha Inicial</FormLabel>
+                          <FormControl><Input type="password" placeholder="Senha" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={newUserForm.control}
+                      name="newUserRole"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Papel</FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Selecione um papel" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value={UserRole.EMPLOYEE}>Funcionário</SelectItem>
+                              <SelectItem value={UserRole.ADMIN}>Administrador</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            Admins têm acesso a todas as configurações e departamentos.
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <FormField
+                    control={newUserForm.control}
+                    name="newUserDepartments"
+                    render={() => (
+                      <FormItem>
+                        <FormLabel>Departamentos Designados</FormLabel>
+                        <div className="space-y-2 border rounded-md p-3 max-h-40 overflow-y-auto">
+                          {availableDepartments
+                            .filter(dept => dept !== ADMIN_DEPARTMENT || newUserForm.getValues("newUserRole") === UserRole.ADMIN ) // Admin can be in RH
+                            .map((deptValue) => (
+                            <FormField
+                              key={deptValue}
+                              control={newUserForm.control}
+                              name="newUserDepartments"
+                              render={({ field }) => {
+                                return (
+                                  <FormItem key={deptValue} className="flex flex-row items-start space-x-3 space-y-0">
+                                    <FormControl>
+                                      <Checkbox
+                                        checked={field.value?.includes(deptValue)}
+                                        onCheckedChange={(checked) => {
+                                          return checked
+                                            ? field.onChange([...(field.value || []), deptValue])
+                                            : field.onChange(
+                                                (field.value || []).filter(
+                                                  (value) => value !== deptValue
+                                                )
+                                              )
+                                        }}
+                                      />
+                                    </FormControl>
+                                    <FormLabel className="font-normal text-sm">
+                                      {deptValue}
+                                    </FormLabel>
+                                  </FormItem>
+                                )
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <Button type="submit" disabled={isProcessingUserAction} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    {isProcessingUserAction && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    <UserPlus className="mr-2 h-4 w-4" /> Adicionar Usuário
+                  </Button>
+                </form>
+              </Form>
+
+              {/* Tabela de Usuários Existentes */}
+              <div className="mt-6">
+                <h3 className="text-lg font-medium text-foreground mb-2">Usuários Existentes</h3>
+                {manageableUsers.length === 0 ? (
+                  <p className="text-muted-foreground text-center">Nenhum usuário cadastrado (além de você, se for o caso).</p>
+                ) : (
+                  <div className="overflow-x-auto border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nome</TableHead>
+                          <TableHead>E-mail</TableHead>
+                          <TableHead>Papel</TableHead>
+                          <TableHead>Departamentos</TableHead>
+                          <TableHead className="text-right">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {manageableUsers.map((user) => (
+                          <TableRow key={user.id}>
+                            <TableCell>{user.name} {user.id === loggedInUser.id ? "(Você)" : ""}</TableCell>
+                            <TableCell>{user.email}</TableCell>
+                            <TableCell>{user.role === UserRole.ADMIN ? 'Admin' : 'Funcionário'}</TableCell>
+                            <TableCell className="text-xs">{(user.departments || []).join(', ')}</TableCell>
+                            <TableCell className="text-right space-x-1">
+                              {user.id !== loggedInUser.id && ( // Não pode resetar própria senha ou excluir a si mesmo aqui
+                                <>
+                                  <Button variant="outline" size="sm" onClick={() => handleResetUserPassword(user.id)} disabled={isProcessingUserAction} title="Resetar Senha">
+                                    <KeyRound className="h-4 w-4" />
+                                  </Button>
+                                   <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="destructive" size="sm" disabled={isProcessingUserAction} title="Excluir Usuário">
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          Tem certeza que deseja excluir o usuário {user.name} ({user.email})? Esta ação não pode ser desfeita.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDeleteUser(user.id, user.name)}
+                                          className={buttonVariants({ variant: "destructive" })}
+                                        >
+                                          Excluir
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+
+          {/* Gerenciar Departamentos de Funcionários (Existente) */}
+          <Card className="shadow-lg">
+            <CardHeader>
+              <CardTitle className="text-xl flex items-center gap-2"><Edit2 className="h-5 w-5 text-primary" /> Gerenciar Departamentos de Funcionários Existentes</CardTitle>
+              <CardDescription>Designe os departamentos aos quais cada funcionário existente tem acesso.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {manageableUsers.length === 0 ? (
@@ -434,7 +727,7 @@ export default function SettingsPage() {
                           <TableCell>
                             <div className="space-y-2 border rounded-md p-2 max-h-48 overflow-y-auto">
                               {availableDepartments
-                                .filter(dept => dept !== ADMIN_DEPARTMENT) // Don't show ADMIN_DEPARTMENT as an assignable option here for others
+                                .filter(dept => dept !== ADMIN_DEPARTMENT) 
                                 .map(deptValue => (
                                 <div key={deptValue} className="flex items-center space-x-2">
                                   <Checkbox
@@ -485,6 +778,7 @@ export default function SettingsPage() {
             </CardFooter>
           </Card>
 
+          {/* Gerenciar Tipos de Documento */}
           <Card className="shadow-lg">
             <CardHeader>
                 <CardTitle className="text-xl flex items-center gap-2"><BookType className="h-5 w-5 text-primary" /> Gerenciar Tipos de Documento</CardTitle>
@@ -520,6 +814,7 @@ export default function SettingsPage() {
             </CardContent>
           </Card>
 
+          {/* Gerenciar Locais/Departamentos */}
           <Card className="shadow-lg">
             <CardHeader>
                 <CardTitle className="text-xl flex items-center gap-2"><Landmark className="h-5 w-5 text-primary" /> Gerenciar Locais/Departamentos</CardTitle>
@@ -559,5 +854,3 @@ export default function SettingsPage() {
     </div>
   );
 }
-
-

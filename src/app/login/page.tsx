@@ -50,14 +50,14 @@ export default function LoginPage() {
         setAvailableUsers(usersWithPasswordsEnsured);
       } else {
         // Initialize localStorage if empty
-        const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID(), departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue]  }));
+        const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID(), password: u.password || "123", departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue]  }));
         localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(usersWithIds));
         setAvailableUsers(usersWithIds as LoggedInUser[]);
       }
     } catch (error) {
       console.error("Failed to load users from localStorage", error);
       // Fallback to initial mocks if localStorage is corrupt
-      const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID(), departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] }));
+      const usersWithIds = initialMockUsers.map(u => ({ ...u, id: crypto.randomUUID(), password: u.password || "123", departments: Array.isArray(u.departments) ? u.departments : [u.departments as DocumentDepartmentValue] }));
       setAvailableUsers(usersWithIds as LoggedInUser[]);
     }
     setIsLoadingUsers(false);
@@ -128,7 +128,7 @@ export default function LoginPage() {
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Senha (Simulação: "123")</Label>
+            <Label htmlFor="password">Senha (Simulação)</Label>
             <Input 
               id="password" 
               type="password" 
