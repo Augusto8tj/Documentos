@@ -28,10 +28,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, ExternalLink, Users, CalendarIcon, Filter, Folder, FileArchive, CheckCircle2, FileEdit, Archive, User, Building, Loader2 } from "lucide-react";
-import type { DocumentMetadata, DocumentSourceType, LoggedInUser, DocumentTypeValue, DocumentDepartmentValue } from "@/lib/types";
+import { Edit3, Share2, Trash2, MoreVertical, FileText, Eye, X, ExternalLink, Users, CalendarIcon, Filter, Folder, FileArchive, CheckCircle2, FileEdit, Archive, User, Building, Loader2, ChevronDown } from "lucide-react";
+import type { DocumentMetadata, DocumentSourceType, DocumentTypeValue, DocumentDepartmentValue } from "@/lib/types";
 import { ADMIN_DEPARTMENT, DEFAULT_DOCUMENT_TYPES, DEFAULT_DOCUMENT_DEPARTMENTS } from "@/lib/types";
 import { ShareDocumentDialog } from "./ShareDocumentDialog";
+import { updateDocumentStatusAction } from "@/lib/actions";
+import { useToast } from "@/hooks/use-toast";
 import { 
   format, 
   isSameDay, 
@@ -68,11 +70,22 @@ type DateFilterPeriod = "all" | "day" | "week" | "month" | "year";
 const localStorageDocumentTypesKey = "docflow-document-types";
 const localStorageDepartmentsKey = "docflow-document-departments";
 
+const STATUS_OPTIONS: DocumentMetadata["status"][] = ["Published", "Draft", "Archived"];
+const STATUS_LABELS: Record<DocumentMetadata["status"], string> = {
+  Published: "Publicado",
+  Draft: "Rascunho",
+  Archived: "Arquivado",
+};
+
+
 export function DocumentListClient({ documents: initialDocuments }: DocumentListClientProps) {
   const { user, isLoading: authIsLoading } = useAuth();
+  const { toast } = useToast();
   const [processedDocs, setProcessedDocs] = useState<ProcessedDocument[] | null>(null);
   const [selectedDocumentForShare, setSelectedDocumentForShare] = useState<DocumentMetadata | null>(null);
   const [isShareDialogOpen, setIsShareDialogOpen] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState<Record<string, boolean>>({});
+
 
   const [filterSearchTerm, setFilterSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<DocumentTypeValue | "all">("all");
@@ -126,7 +139,7 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     const formattedDocs = documentsForUser.map(doc => ({
       ...doc,
       displayUpdatedAt: format(new Date(doc.updatedAt), "dd MMM, yyyy", { locale: ptBR }),
-      displayStatus: doc.status === "Published" ? "Publicado" : doc.status === "Draft" ? "Rascunho" : doc.status === "Archived" ? "Arquivado" : doc.status,
+      displayStatus: STATUS_LABELS[doc.status] || doc.status,
     }));
 
     const filtered = formattedDocs.filter(doc => {
@@ -188,8 +201,66 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   };
 
   const handleDelete = (docId: string) => {
+    // TODO: Implement actual delete action with server call
     console.log("Excluir documento:", docId); // Simulação
     setProcessedDocs(prevDocs => prevDocs ? prevDocs.filter(doc => doc.id !== docId) : null);
+    toast({ title: "Documento Excluído (Simulado)", description: "A exclusão real requer integração com backend."})
+  };
+
+  const handleStatusChange = async (documentId: string, newStatus: DocumentMetadata["status"]) => {
+    setIsUpdatingStatus(prev => ({ ...prev, [documentId]: true }));
+    const originalDocument = processedDocs?.find(doc => doc.id === documentId);
+    if (!originalDocument) return;
+
+    // Optimistically update UI
+    setProcessedDocs(prevDocs =>
+      prevDocs 
+        ? prevDocs.map(d => 
+            d.id === documentId ? { ...d, status: newStatus, displayStatus: STATUS_LABELS[newStatus] } : d
+          )
+        : null
+    );
+
+    try {
+      const result = await updateDocumentStatusAction(documentId, newStatus);
+      if (result.success) {
+        toast({
+          title: "Status Atualizado",
+          description: `O status do documento foi alterado para ${STATUS_LABELS[newStatus]}.`,
+        });
+      } else {
+        toast({
+          title: "Erro ao Atualizar Status",
+          description: result.error || "Ocorreu um erro desconhecido.",
+          variant: "destructive",
+        });
+        // Revert optimistic update
+        setProcessedDocs(prevDocs =>
+          prevDocs
+            ? prevDocs.map(d => 
+                d.id === documentId ? { ...originalDocument, displayStatus: STATUS_LABELS[originalDocument.status] } : d
+              )
+            : null
+        );
+      }
+    } catch (error) {
+      console.error("Erro ao atualizar status:", error);
+      toast({
+        title: "Erro de Rede",
+        description: "Não foi possível conectar ao servidor para atualizar o status.",
+        variant: "destructive",
+      });
+       // Revert optimistic update
+       setProcessedDocs(prevDocs =>
+        prevDocs
+          ? prevDocs.map(d => 
+              d.id === documentId ? { ...originalDocument, displayStatus: STATUS_LABELS[originalDocument.status] } : d
+            )
+          : null
+      );
+    } finally {
+      setIsUpdatingStatus(prev => ({ ...prev, [documentId]: false }));
+    }
   };
   
   const handleClearFilters = () => {
@@ -290,11 +361,11 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
   const getStatusBadgeClass = (status: DocumentMetadata["status"]) => {
      switch (status) {
       case "Published":
-        return "bg-accent text-accent-foreground"; 
+        return "bg-accent text-accent-foreground hover:bg-accent/80"; 
       case "Draft":
-        return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50"; 
+        return "bg-yellow-500/20 text-yellow-700 border-yellow-500/50 hover:bg-yellow-500/30"; 
       case "Archived":
-         return "bg-gray-500/20 text-gray-700 border-gray-500/50"; 
+         return "bg-gray-500/20 text-gray-700 border-gray-500/50 hover:bg-gray-500/30"; 
       default:
         return "";
     }
@@ -364,9 +435,9 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">Todos os status</SelectItem>
-                    <SelectItem value="Draft">Rascunho</SelectItem>
-                    <SelectItem value="Published">Publicado</SelectItem>
-                    <SelectItem value="Archived">Arquivado</SelectItem>
+                    <SelectItem value="Draft">{STATUS_LABELS["Draft"]}</SelectItem>
+                    <SelectItem value="Published">{STATUS_LABELS["Published"]}</SelectItem>
+                    <SelectItem value="Archived">{STATUS_LABELS["Archived"]}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -551,7 +622,11 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                 </TableCell>
               </TableRow>
             ) : (
-              currentDocuments.map((doc) => (
+              currentDocuments.map((doc) => {
+                const userCanEditDoc = userIsAdmin || (doc.department && (user?.departments || []).includes(doc.department));
+                const isLoadingThisStatus = isUpdatingStatus[doc.id];
+
+                return (
                 <TableRow key={doc.id}>
                   <TableCell className="p-2 text-center">
                     <TooltipProvider>
@@ -589,12 +664,40 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                   <TableCell className="text-muted-foreground">{doc.number}</TableCell>
                   {userIsAdmin && <TableCell className="text-muted-foreground">{doc.department || "N/A"}</TableCell>}
                   <TableCell>
-                  <Badge 
-                    variant={getStatusBadgeVariant(doc.status)} 
-                    className={cn(getStatusBadgeClass(doc.status))}
-                  >
-                      {doc.displayStatus}
-                    </Badge>
+                    {userCanEditDoc ? (
+                       <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className={cn("h-auto px-2 py-1 flex items-center gap-1", getStatusBadgeClass(doc.status))}
+                            disabled={isLoadingThisStatus}
+                          >
+                            {isLoadingThisStatus && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                            {doc.displayStatus}
+                            {!isLoadingThisStatus && <ChevronDown className="h-3 w-3 opacity-70 ml-1" />}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start">
+                          {STATUS_OPTIONS.map(statusOption => (
+                            <DropdownMenuItem
+                              key={statusOption}
+                              onClick={() => handleStatusChange(doc.id, statusOption)}
+                              disabled={doc.status === statusOption}
+                            >
+                              {STATUS_LABELS[statusOption]}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : (
+                      <Badge 
+                        variant={getStatusBadgeVariant(doc.status)} 
+                        className={cn(getStatusBadgeClass(doc.status))}
+                      >
+                        {doc.displayStatus}
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {doc.displayUpdatedAt}
@@ -613,11 +716,13 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                             <Eye className="mr-2 h-4 w-4" /> Visualizar
                           </Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                           <Link href={`/documents/${doc.id}/edit`} className="flex items-center cursor-pointer">
-                            <Edit3 className="mr-2 h-4 w-4" /> Editar
-                          </Link>
-                        </DropdownMenuItem>
+                        {userCanEditDoc && (
+                          <DropdownMenuItem asChild>
+                            <Link href={`/documents/${doc.id}/edit`} className="flex items-center cursor-pointer">
+                              <Edit3 className="mr-2 h-4 w-4" /> Editar
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
                          {doc.sourceType === "googleDocs" && doc.googleDocsId && (
                           <DropdownMenuItem asChild>
                             <a href={`https://docs.google.com/document/d/${doc.googleDocsId}/edit`} target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer">
@@ -637,7 +742,8 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
                     </DropdownMenu>
                   </TableCell>
                 </TableRow>
-              ))
+                )
+            })
             )}
           </TableBody>
         </Table>
@@ -650,5 +756,3 @@ export function DocumentListClient({ documents: initialDocuments }: DocumentList
     </>
   );
 }
-
-    

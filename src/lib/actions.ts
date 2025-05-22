@@ -2,7 +2,7 @@
 "use server";
 
 import { z } from "zod";
-import type { DocumentMetadata, DocumentSourceType } from "./types";
+import type { DocumentMetadata, DocumentSourceType, DocumentTypeValue, DocumentDepartmentValue } from "./types";
 import { 
   addDocument as dbAddDocument, 
   updateDocumentSharing as dbUpdateDocumentSharing, 
@@ -13,8 +13,8 @@ import { revalidatePath } from "next/cache";
 
 const CreateDocumentSchema = z.object({
   name: z.string().min(3, "O nome do documento deve ter pelo menos 3 caracteres."),
-  type: z.string().min(1, "Por favor, selecione um tipo de documento."),
-  department: z.string().min(1, "Por favor, selecione um departamento."),
+  type: z.string().min(1, "Por favor, selecione um tipo de documento válido."),
+  department: z.string().min(1, "Por favor, selecione um departamento válido."),
   sourceType: z.enum(["internal", "googleDocs", "local"]),
   googleDocsId: z.string().optional(),
   localFileIdentifier: z.string().optional(),
@@ -72,7 +72,6 @@ export async function createDocumentAction(formData: FormData) {
     authorEmail 
   } = validatedFields.data;
 
-  // Numbering should be unique across all documents for simplicity in mock data
   const countForAllDocs = userDocuments.length + 1;
   const typePrefix = type.substring(0, Math.min(type.length, 3)).toUpperCase();
   const paddedCount = countForAllDocs.toString().padStart(3, '0');
@@ -81,8 +80,8 @@ export async function createDocumentAction(formData: FormData) {
   const newDocument: DocumentMetadata = {
     id: crypto.randomUUID(),
     name,
-    type,
-    department,
+    type: type as DocumentTypeValue,
+    department: department as DocumentDepartmentValue,
     number: newNumber,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -99,17 +98,15 @@ export async function createDocumentAction(formData: FormData) {
     newDocument.googleDocsId = googleDocsId;
   } else if (sourceType === "local" && localFileIdentifier) {
     newDocument.localFileIdentifier = localFileIdentifier;
-  } else if (sourceType === "internal" && internalContent !== undefined) { // Check for undefined
+  } else if (sourceType === "internal" && internalContent !== undefined) {
     newDocument.internalContent = internalContent;
   }
-
 
   dbAddDocument(newDocument);
   
   revalidatePath("/"); 
   revalidatePath("/documents/create"); 
   revalidatePath(`/documents/${newDocument.id}`);
-
 
   return { success: true, documentId: newDocument.id };
 }
@@ -181,10 +178,9 @@ export async function updateDocumentAction(formData: FormData) {
     sourceType: formData.get("sourceType") || undefined,
     googleDocsId: formData.get("googleDocsId") || undefined,
     localFileIdentifier: formData.get("localFileIdentifier") || undefined,
-    internalContent: formData.get("internalContent") || undefined, // Ensure it's read, can be empty string
+    internalContent: formData.get("internalContent") || undefined,
   };
   const validatedFields = EditDocumentFormSchema.safeParse(rawFormData);
-
 
   if (!validatedFields.success) {
     return {
@@ -198,20 +194,25 @@ export async function updateDocumentAction(formData: FormData) {
      return { error: "Departamento é obrigatório." };
   }
 
-  const updates: Partial<DocumentMetadata> = { name, type, department, sourceType: sourceType as DocumentSourceType };
+  const updates: Partial<DocumentMetadata> = { 
+    name, 
+    type: type as DocumentTypeValue, 
+    department: department as DocumentDepartmentValue, 
+    sourceType: sourceType as DocumentSourceType 
+  };
 
   if (sourceType === "googleDocs") {
-    updates.googleDocsId = googleDocsId || ""; // Default to empty string if null/undefined
+    updates.googleDocsId = googleDocsId || ""; 
     updates.localFileIdentifier = undefined; 
     updates.internalContent = undefined;
   } else if (sourceType === "local") {
-    updates.localFileIdentifier = localFileIdentifier || ""; // Default to empty string
+    updates.localFileIdentifier = localFileIdentifier || ""; 
     updates.googleDocsId = undefined; 
     updates.internalContent = undefined;
   } else if (sourceType === "internal") { 
     updates.googleDocsId = undefined;
     updates.localFileIdentifier = undefined;
-    updates.internalContent = internalContent; // Can be empty string or content
+    updates.internalContent = internalContent; 
   } else { 
     updates.googleDocsId = undefined;
     updates.localFileIdentifier = undefined;
@@ -233,3 +234,33 @@ export async function updateDocumentAction(formData: FormData) {
   return { success: true, documentId: id };
 }
 
+const UpdateDocumentStatusSchema = z.object({
+  documentId: z.string().min(1, "ID do documento é obrigatório."),
+  newStatus: z.enum(["Draft", "Published", "Archived"], {
+    errorMap: () => ({ message: "Status inválido." }),
+  }),
+});
+
+export async function updateDocumentStatusAction(documentId: string, newStatus: DocumentMetadata["status"]) {
+  const validatedFields = UpdateDocumentStatusSchema.safeParse({ documentId, newStatus });
+
+  if (!validatedFields.success) {
+    return {
+      error: "Dados inválidos para atualização de status: " + JSON.stringify(validatedFields.error.flatten().fieldErrors),
+    };
+  }
+
+  const updates: Partial<DocumentMetadata> = { status: newStatus };
+  const success = dbUpdateDocumentMetadata(documentId, updates);
+
+  if (!success) {
+    return {
+      error: "Documento não encontrado ou falha ao atualizar o status.",
+    };
+  }
+
+  revalidatePath("/");
+  revalidatePath(`/documents/${documentId}`);
+
+  return { success: true, documentId };
+}
