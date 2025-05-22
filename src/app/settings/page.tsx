@@ -5,7 +5,7 @@ import React, { useEffect, useState } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button"; // Added buttonVariants
 import {
   Form,
   FormControl,
@@ -100,7 +100,7 @@ export default function SettingsPage() {
   
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
 
-  const isAdmin = (loggedInUser?.departments || []).includes(ADMIN_DEPARTMENT);
+  const isAdmin = loggedInUser?.role === UserRole.ADMIN && (loggedInUser?.departments || []).includes(ADMIN_DEPARTMENT);
 
   const profileForm = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -341,14 +341,14 @@ export default function SettingsPage() {
       toast({ title: "Ação Inválida", description: "Você não pode excluir a si mesmo.", variant: "destructive" });
       return;
     }
-    if (window.confirm(`Tem certeza que deseja excluir o usuário ${userName}? Esta ação não pode ser desfeita.`)) {
-      setIsProcessingUserAction(true);
-      const updatedUsers = manageableUsers.filter(u => u.id !== userId);
-      setManageableUsers(updatedUsers);
-      localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
-      toast({ title: "Usuário Excluído", description: `${userName} foi removido do sistema.` });
-      setIsProcessingUserAction(false);
-    }
+    
+    setIsProcessingUserAction(true);
+    const updatedUsers = manageableUsers.filter(u => u.id !== userId);
+    setManageableUsers(updatedUsers);
+    localStorage.setItem(ALL_USERS_STORAGE_KEY, JSON.stringify(updatedUsers));
+    toast({ title: "Usuário Excluído", description: `${userName} foi removido do sistema.` });
+    setIsProcessingUserAction(false);
+    
   };
 
 
@@ -656,7 +656,7 @@ export default function SettingsPage() {
                             <TableCell>{user.role === UserRole.ADMIN ? 'Admin' : 'Funcionário'}</TableCell>
                             <TableCell className="text-xs">{(user.departments || []).join(', ')}</TableCell>
                             <TableCell className="text-right space-x-1">
-                              {user.id !== loggedInUser.id && ( // Não pode resetar própria senha ou excluir a si mesmo aqui
+                              {user.id !== loggedInUser.id && ( 
                                 <>
                                   <Button variant="outline" size="sm" onClick={() => handleResetUserPassword(user.id)} disabled={isProcessingUserAction} title="Resetar Senha">
                                     <KeyRound className="h-4 w-4" />
@@ -854,3 +854,5 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+    
