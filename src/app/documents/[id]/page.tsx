@@ -1,7 +1,7 @@
 
-"use client"; // Convert to client component for auth check
+"use client"; 
 
-import React, { useEffect, useState } from 'react'; // Import React
+import React, { useEffect, useState } from 'react';
 import { getDocumentById } from "@/data/mock-data";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -15,20 +15,21 @@ import { ADMIN_DEPARTMENT } from '@/lib/types';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface DocumentDetailPageProps {
-  params: Promise<{ id: string }>; // Updated type
+  params: Promise<{ id: string }>;
 }
 
-export default function DocumentDetailPage({ params: paramsPromise }: DocumentDetailPageProps) {
-  const resolvedParams = React.use(paramsPromise); // Unwrap params
-  const documentId = resolvedParams.id;
+interface DocumentDetailContentsProps {
+  documentId: string;
+}
 
+function DocumentDetailContents({ documentId }: DocumentDetailContentsProps) {
   const { user, isLoading: authIsLoading } = useAuth();
   const router = useRouter();
-  const [document, setDocument] = useState<DocumentMetadata | null | undefined>(undefined); // undefined: loading, null: not found or access denied
+  const [document, setDocument] = useState<DocumentMetadata | null | undefined>(undefined);
   const [isLoadingDoc, setIsLoadingDoc] = useState(true);
 
   useEffect(() => {
-    if (authIsLoading) return; // Wait for auth state
+    if (authIsLoading) return; 
 
     if (!user) {
       router.push("/login"); 
@@ -37,26 +38,26 @@ export default function DocumentDetailPage({ params: paramsPromise }: DocumentDe
 
     async function fetchDocument() {
       setIsLoadingDoc(true);
-      const fetchedDocument = await getDocumentById(documentId); // Use resolved documentId
+      const fetchedDocument = await getDocumentById(documentId);
       if (!fetchedDocument) {
-        setDocument(null); // Triggers notFound later
+        setDocument(null); 
         setIsLoadingDoc(false);
         return;
       }
 
       const userIsAdmin = (user.departments || []).includes(ADMIN_DEPARTMENT);
       if (!userIsAdmin && (!fetchedDocument.department || !(user.departments || []).includes(fetchedDocument.department))) {
-        setDocument(null); // Mark as not found for non-admins trying to access other dept docs
+        setDocument(null); 
       } else {
         setDocument(fetchedDocument);
       }
       setIsLoadingDoc(false);
     }
 
-    if (documentId) { // Ensure documentId is available
+    if (documentId) {
         fetchDocument();
     }
-  }, [documentId, user, authIsLoading, router]); // Updated dependency
+  }, [documentId, user, authIsLoading, router]);
 
 
   if (authIsLoading || isLoadingDoc || document === undefined) {
@@ -67,7 +68,7 @@ export default function DocumentDetailPage({ params: paramsPromise }: DocumentDe
     );
   }
 
-  if (!document) { // Handles not found or access denied after checks
+  if (!document) {
     notFound();
   }
 
@@ -218,4 +219,18 @@ export default function DocumentDetailPage({ params: paramsPromise }: DocumentDe
       </Card>
     </div>
   );
+}
+
+
+export default function DocumentDetailPage({ params: paramsPromise }: DocumentDetailPageProps) {
+  const resolvedParams = React.use(paramsPromise);
+  const documentId = resolvedParams.id;
+
+  if (!documentId) {
+    // This case should ideally not happen if routing is correct,
+    // but as a safeguard before passing to the child component.
+    return notFound();
+  }
+
+  return <DocumentDetailContents documentId={documentId} />;
 }
