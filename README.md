@@ -1,4 +1,4 @@
-# Firebase Studio
+# Gerenciador de Documentos
 
 Este projeto é um starter Next.js integrado ao Firebase Studio, projetado para gerenciar documentos de forma eficiente. Ele oferece funcionalidades para criar, editar e organizar documentos, com suporte a fontes externas como Google Docs e arquivos locais, além de modelos pré-definidos e numeração automática.
 
@@ -22,7 +22,7 @@ Este projeto é um starter Next.js integrado ao Firebase Studio, projetado para 
 
 ## Visão Geral
 
-O Firebase Studio é uma aplicação desenvolvida com Next.js que visa simplificar o gerenciamento de documentos. Permite a criação e edição de conteúdo a partir de diversas fontes, garantindo organização e colaboração através de funcionalidades como modelos customizáveis, numeração automática e um sistema de compartilhamento seguro.
+O Gerenciador de Documentos é uma aplicação desenvolvida com Next.js que visa simplificar o gerenciamento de documentos. Permite a criação e edição de conteúdo a partir de diversas fontes, garantindo organização e colaboração através de funcionalidades como modelos customizáveis, numeração automática e um sistema de compartilhamento seguro.
 
 ## Funcionalidades Principais
 
@@ -85,7 +85,7 @@ O sistema permite que você escolha a origem do conteúdo do seu documento, ofer
 
 #### Google Docs
 
-*   **O que é:** Seus documentos são gerenciados diretamente no Google Docs. O sistema se integra para buscar e exibir o conteúdo.
+*   **O que é:** Seus documentos são gerenciados diretamente no Google Docs. O Gerenciador de Documentos se integra para buscar e exibir o conteúdo.
 *   **Como funciona:**
     1.  **Criação Manual:** Você deve criar ou utilizar um documento existente no Google Docs. O sistema **não cria** documentos no Google Docs automaticamente.
     2.  **Conteúdo Base:** O `baseContentPreview` fornecido pelos modelos serve como **sugestão** para o conteúdo que você deve colar no seu documento do Google Docs.
@@ -120,7 +120,7 @@ Documentos criados na aplicação podem receber uma numeração sequencial autom
 
 ### Compartilhamento de Documentos
 
-O sistema permite compartilhar documentos com outros usuários, definindo permissões específicas.
+O Gerenciador de Documentos permite compartilhar documentos com outros usuários, definindo permissões específicas.
 
 *   **Como Funciona:** Ao acessar a opção de compartilhamento, uma janela permite que você:
     *   Adicione e-mails de usuários.
